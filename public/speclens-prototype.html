@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpecLens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#e0a437;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html,body{height:100%;margin:0;padding:0;}
+  body{
+    background:#fffefb;
+    color:#2a2218;
+    font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  }
+  input::placeholder,textarea::placeholder{color:#bdae97;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#e0d4be;border-radius:6px;border:2px solid #fffefb;}
+
+  .app{display:flex;height:100vh;overflow:hidden;}
+
+  /* sidebar */
+  .sidebar{width:252px;flex:none;background:#262019;display:flex;flex-direction:column;}
+  .sidebar-header{padding:18px 20px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #38302a;}
+  .sidebar-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  .sidebar-logo{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;color:#fdf8ef;letter-spacing:-.2px;}
+  .sidebar-newwrap{padding:14px 14px 6px;}
+  .btn-new{width:100%;padding:10px;background:var(--accent);border:none;border-radius:11px;color:#2a2218;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .sidebar-label{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:#ab9d89;text-transform:uppercase;letter-spacing:.1em;padding:14px 20px 8px;}
+  .sidebar-projects{flex:1;overflow-y:auto;padding:0 10px;display:flex;flex-direction:column;gap:3px;}
+  .project-item{padding:11px;border-radius:11px;cursor:pointer;}
+  .project-item.active{background:#38302a;}
+  .project-row{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+  .project-name{font-size:12.5px;font-weight:600;color:#d4c8b6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .project-item.active .project-name{color:#fdf8ef;}
+  .project-dot{width:7px;height:7px;border-radius:50%;flex:none;}
+  .project-meta{font-size:10.5px;color:#897b66;margin-top:3px;}
+  .sidebar-footer{padding:14px 20px;border-top:1px solid #38302a;font-size:11px;color:#ab9d89;line-height:1.45;}
+
+  /* main / topbar */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .topbar{height:56px;flex:none;border-bottom:1px solid #f0e7d6;display:flex;align-items:center;justify-content:space-between;padding:0 28px;}
+  .topbar-left{display:flex;align-items:center;gap:10px;}
+  .topbar-title{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;}
+  .status-badge{font-family:'DM Mono',monospace;font-size:9px;font-weight:500;padding:3px 8px;border-radius:7px;text-transform:uppercase;letter-spacing:.04em;}
+  .tabs{display:flex;gap:4px;}
+  .tab{padding:7px 14px;border-radius:10px;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;color:#c4b8a4;}
+  .tab.active{background:#f7eedd;color:#2a2218;}
+  .tab-count{font-size:10px;background:#f0dcb4;color:#9a6516;padding:1px 6px;border-radius:10px;font-weight:700;}
+
+  .content{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+  .screen{flex:1;overflow-y:auto;}
+  .screen-inner{max-width:600px;margin:0 auto;padding:44px 24px 80px;width:100%;}
+
+  /* onboarding */
+  .progress-dots{display:flex;gap:8px;margin-bottom:30px;}
+  .dot{flex:1;height:5px;border-radius:3px;background:#f0e2c4;}
+  .dot.filled{background:var(--accent);}
+  .step-label{font-family:'DM Mono',monospace;font-size:10.5px;font-weight:500;color:#bd7d14;text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px;}
+  .step-title{font-family:'Bricolage Grotesque',sans-serif;font-size:27px;font-weight:700;letter-spacing:-.4px;line-height:1.05;margin-bottom:8px;}
+  .step-sub{font-size:14px;color:#8c7d68;line-height:1.55;margin-bottom:26px;}
+
+  .field{margin-bottom:22px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:#4f4434;margin-bottom:9px;}
+  .field label .opt{font-weight:500;color:#a3927a;}
+  .field input[type=text],.field textarea{width:100%;padding:13px 15px;border:1.5px solid #efe6d4;border-radius:11px;font-size:14px;color:#2a2218;background:#fffefb;outline:none;font-family:inherit;}
+  .field textarea{font-size:13.5px;line-height:1.5;resize:vertical;min-height:64px;}
+  .hint{font-size:11.5px;color:#a3927a;margin-top:7px;}
+
+  .note{font-size:11.5px;color:#9a6516;background:#fdf0d8;border:1px solid #f3e0bb;padding:11px 13px;border-radius:12px;display:flex;gap:8px;align-items:flex-start;line-height:1.5;}
+
+  .competitor-card{border:1px solid #efe6d4;border-radius:13px;padding:16px;margin-bottom:11px;background:#faf5ea;}
+  .competitor-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .competitor-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:#a3927a;text-transform:uppercase;letter-spacing:.05em;}
+  .remove-x{color:#c2ac88;cursor:pointer;font-size:17px;line-height:1;background:none;border:none;}
+  .remove-x:hover{color:#cf5c43;}
+  .competitor-card label{display:block;font-size:11.5px;font-weight:700;color:#4f4434;margin-bottom:7px;}
+  .competitor-card input,.competitor-card textarea{width:100%;padding:10px 13px;border:1px solid #e9ded0;border-radius:10px;font-size:13px;color:#2a2218;background:#fffefb;outline:none;font-family:inherit;margin-bottom:12px;}
+  .competitor-card textarea{line-height:1.5;resize:vertical;min-height:48px;}
+  .btn-dashed{width:100%;padding:12px;border:1.5px dashed #d8c8a8;border-radius:11px;background:none;color:#9a6516;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn-dashed:hover{border-color:#e0a437;background:#fdf0d8;}
+
+  .pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .pill{display:flex;align-items:center;gap:8px;padding:7px 13px;background:#faf2e3;border:1px solid #ecdcbd;border-radius:999px;font-size:12px;font-weight:600;color:#4f4434;}
+  .pill .x{color:#c2ac88;cursor:pointer;font-size:14px;line-height:1;}
+  .pill .x:hover{color:#cf5c43;}
+  .add-row{display:flex;gap:9px;}
+  .add-row input{flex:1;padding:11px 13px;border:1px solid #e9ded0;border-radius:11px;font-size:13px;color:#2a2218;background:#fffefb;outline:none;font-family:inherit;}
+  .btn-soft{padding:11px 18px;background:#f7eedd;border:1px solid #e9ded0;border-radius:11px;font-size:12.5px;font-weight:700;color:#4f4434;cursor:pointer;font-family:inherit;flex:none;}
+
+  .footer-nav{display:flex;justify-content:space-between;align-items:center;margin-top:32px;}
+  .btn-back{background:none;border:none;color:#8c7d68;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn-next{padding:12px 26px;border:none;border-radius:11px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+
+  /* researching */
+  .research-title{font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px;}
+  .research-sub{font-size:13px;color:#8c7d68;margin-bottom:30px;}
+  .research-item{display:flex;align-items:center;gap:13px;padding:13px 4px;border-bottom:1px solid #f4ecdb;}
+  .research-icon{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#2a2218;}
+  .research-label{font-size:13px;}
+  .research-meta{font-size:11px;color:#a3927a;margin-left:auto;font-family:'DM Mono',monospace;}
+  .btn-primary{padding:12px 24px;background:var(--accent);color:#2a2218;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .leave-note{margin-top:22px;padding:15px;background:#faf5ea;border:1px solid #efe6d4;border-radius:12px;display:flex;gap:11px;align-items:flex-start;font-size:12px;color:#7c6e58;line-height:1.5;}
+
+  /* recap */
+  .recap-title{font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px;}
+  .recap-sub{font-size:13px;color:#8c7d68;margin-bottom:26px;line-height:1.55;}
+  .recap-section{margin-bottom:20px;}
+  .recap-label{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:#a3927a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px;}
+  .recap-box{font-size:14px;font-weight:600;padding:13px 15px;border:1px solid #efe6d4;border-radius:11px;background:#faf5ea;}
+  .recap-competitor{padding:12px 15px;border:1px solid #efe6d4;border-radius:11px;background:#faf5ea;margin-bottom:8px;}
+  .recap-competitor-name{font-size:13px;font-weight:700;}
+  .recap-competitor-urls{font-family:'DM Mono',monospace;font-size:10.5px;color:#a3927a;margin-top:3px;}
+
+  /* results */
+  .results{flex:1;display:flex;flex-direction:column;min-height:0;padding:20px 28px 24px;}
+  .results-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .filters,.toolbar-actions{display:flex;gap:8px;}
+  .filter-pill{padding:7px 11px;border:1px solid #efe6d4;border-radius:10px;font-size:11.5px;color:#8c7d68;background:#fffefb;cursor:pointer;}
+  .btn-toolbar{padding:7px 12px;border:1px solid #efe6d4;border-radius:10px;font-size:11.5px;font-weight:600;color:#4f4434;background:#fffefb;cursor:pointer;font-family:inherit;}
+  .count-badge{font-size:9px;background:#f0dcb4;color:#9a6516;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:6px;}
+  .btn-add-attr{padding:7px 13px;border:none;border-radius:10px;font-size:11.5px;font-weight:700;color:#2a2218;background:var(--accent);cursor:pointer;font-family:inherit;}
+
+  .matrix-wrap{border:1px solid #efe6d4;border-radius:14px;overflow:auto;flex:1;}
+  .matrix{display:grid;min-width:760px;font-size:11.5px;align-content:start;}
+  .mh-attr{padding:13px 16px;font-family:'DM Mono',monospace;font-size:9.5px;font-weight:500;color:#a3927a;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #ecdcbd;border-right:1px solid #ecdcbd;display:flex;align-items:flex-end;position:sticky;left:0;background:#faf2e3;z-index:2;}
+  .mh-company{padding:11px 14px;border-bottom:1px solid #ecdcbd;background:#faf2e3;}
+  .mh-company-name{font-family:'Bricolage Grotesque',sans-serif;font-size:13px;font-weight:700;margin-bottom:5px;}
+  .mh-gtm{font-size:9px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;}
+  .mh-sources{font-size:9px;color:#a3927a;margin-top:5px;font-family:'DM Mono',monospace;}
+  .m-rowlabel{padding:14px 16px;background:#fdf9f0;border-right:1px solid #ecdcbd;border-bottom:1px solid #f4ecdb;font-family:'DM Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#7c6e58;font-weight:500;position:sticky;left:0;z-index:1;}
+  .m-cell{padding:9px 8px;border-bottom:1px solid #f4ecdb;}
+  .m-cell-inner{display:block;line-height:1.45;border-radius:7px;padding:5px 7px;cursor:pointer;}
+  .m-cell-inner:hover{background:#faf2e3;}
+  .m-cell-inner.static{cursor:default;}
+  .m-cell-inner.static:hover{background:none;}
+  .chip{display:inline-block;margin-top:5px;font-size:8.5px;font-weight:700;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:5px;}
+  .m-addrow{grid-column:1/-1;padding:13px 16px;font-size:11.5px;font-weight:700;color:#bd7d14;cursor:pointer;background:#fffefb;position:sticky;left:0;}
+  .m-addrow:hover{background:#fdf0d8;}
+
+  .legend{display:flex;gap:18px;align-items:center;margin-top:14px;padding:0 2px;flex-wrap:wrap;}
+  .legend-label{font-family:'DM Mono',monospace;font-size:10px;color:#a3927a;text-transform:uppercase;letter-spacing:.06em;}
+  .legend-item{font-size:10.5px;color:#7c6e58;display:flex;align-items:center;gap:6px;}
+  .legend-hint{font-size:10.5px;color:#a3927a;margin-left:auto;}
+
+  /* drawers */
+  .overlay{position:fixed;inset:0;background:rgba(42,34,24,.32);display:flex;justify-content:flex-end;z-index:50;}
+  .drawer{width:392px;height:100%;background:#fffefb;box-shadow:-6px 0 28px rgba(80,50,20,.14);padding:26px;overflow-y:auto;}
+  .drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .drawer-title{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:700;}
+  .drawer-close{background:none;border:none;font-size:20px;color:#bdae97;cursor:pointer;line-height:1;}
+  .drawer-sub{font-size:12.5px;color:#8c7d68;margin-bottom:20px;line-height:1.5;}
+  .value-box{background:#faf5ea;border:1px solid #efe6d4;border-radius:11px;padding:13px;margin-bottom:18px;}
+  .value-box-label{font-family:'DM Mono',monospace;font-size:9.5px;font-weight:500;color:#a3927a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .value-box-val{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;}
+  .drawer textarea,.drawer input[type=text]{width:100%;padding:11px 13px;border:1px solid #e9ded0;border-radius:11px;font-size:13px;color:#2a2218;background:#fffefb;outline:none;font-family:inherit;}
+  .drawer textarea{line-height:1.5;resize:vertical;}
+  .btn-block{width:100%;padding:11px;border:none;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn-block.ghost{background:#fffefb;color:#4f4434;border:1.5px solid #e9ded0;}
+  .or-divider{display:flex;align-items:center;gap:10px;margin:20px 0;}
+  .or-line{flex:1;height:1px;background:#f0e7d6;}
+  .or-text{font-family:'DM Mono',monospace;font-size:10px;color:#bcae97;text-transform:uppercase;letter-spacing:.06em;}
+  .source-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#7c6e58;padding:8px 0;border-bottom:1px solid #f4ecdb;font-family:'DM Mono',monospace;}
+  .source-badge{flex:none;font-size:8.5px;font-weight:700;padding:2px 6px;border-radius:5px;}
+  .add-source-row{display:flex;gap:8px;margin-top:12px;margin-bottom:12px;}
+  .add-source-row input{flex:1;padding:10px 12px;border:1px solid #e9ded0;border-radius:10px;font-size:12.5px;color:#2a2218;background:#fffefb;outline:none;font-family:inherit;}
+  .checkbox-row{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;margin-bottom:9px;}
+  .checkbox{width:18px;height:18px;border-radius:6px;border:1.5px solid #d8c8a8;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#2a2218;}
+  .checkbox.checked{background:var(--accent);border-color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+function esc(s){
+  return String(s===undefined||s===null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const App = {
+  companies: [
+    { name:'Procore', gtm:'Sales-led', gtmColor:'#e9663f', summary:'Per-tool templates with granular task add-ons; no folder-level control.' },
+    { name:'Autodesk CC', gtm:'Sales-led', gtmColor:'#e9663f', summary:'Folder-level, three assignment paths; subfolders inherit upward only.' },
+    { name:'Notion', gtm:'Hybrid', gtmColor:'#6d5bc0', summary:'Page-level cascade from workspace → page, fully overridable.' },
+    { name:'Figma', gtm:'Hybrid', gtmColor:'#6d5bc0', summary:'Org → team → file; team role acts as a floor, never a ceiling.' }
+  ],
+
+  attributes: [
+    { label:'Permission scope', values:{ 'Procore':{v:'Per tool/feature',c:'high'}, 'Autodesk CC':{v:'Per folder',c:'high'}, 'Notion':{v:'Per page/object',c:'high'}, 'Figma':{v:'Team → file',c:'high'} } },
+    { label:'Role model', values:{ 'Procore':{v:'Fixed + add-ons',c:'high'}, 'Autodesk CC':{v:'Fixed ladder tiers',c:'high'}, 'Notion':{v:'Rich role set',c:'med'}, 'Figma':{v:'Viewer → owner',c:'med'} } },
+    { label:'Inheritance', values:{ 'Procore':{v:'Not specified',c:'low'}, 'Autodesk CC':{v:'Yes, upward only',c:'high'}, 'Notion':{v:'Yes, overridable',c:'high'}, 'Figma':{v:'Team is floor',c:'high'} } },
+    { label:'External sharing', values:{ 'Procore':{v:'Limited',c:'med'}, 'Autodesk CC':{v:'Yes',c:'high'}, 'Notion':{v:'Yes',c:'high'}, 'Figma':{v:'Yes',c:'high'} } }
+  ],
+
+  sources: {
+    'Procore': [ {url:'help.procore.com/permissions-matrix', type:'seed'}, {url:'support.procore.com/faq/permission-levels', type:'crawled'} ],
+    'Autodesk CC': [ {url:'help.autodesk.com/construction-cloud/permissions', type:'seed'}, {url:'knowledge.autodesk.com/folder-access', type:'crawled'} ],
+    'Notion': [ {url:'notion.so/help/sharing-and-permissions', type:'seed'}, {url:'notion.so/help/workspace-settings', type:'crawled'} ],
+    'Figma': [ {url:'help.figma.com/permissions', type:'seed'}, {url:'figma.com/best-practices/team-organization', type:'crawled'} ]
+  },
+
+  SOURCE_BADGE: {
+    seed: { bg:'#e7efdd', color:'#4a6b32', label:'SEED' },
+    crawled: { bg:'#ece7f7', color:'#6d5bc0', label:'CRAWLED' },
+    added: { bg:'#fce9c8', color:'#9a6516', label:'ADDED' }
+  },
+
+  ATTR_SETS: {
+    permission: [
+      { name:'Permission scope', desc:'The level at which permissions are set — per tool, folder, page, or row' },
+      { name:'Restriction target', desc:'Who permissions can be assigned to — users, roles, groups, or companies' },
+      { name:'Role model', desc:'How roles are structured — fixed tiers, fixed + add-ons, or fully custom' },
+      { name:'Inheritance', desc:'Whether child items inherit permissions from their parent' },
+      { name:'Override allowed', desc:'Whether a child item can differ from its parent' },
+      { name:'External sharing', desc:'Whether non-members can be given access' },
+      { name:'Public links', desc:'Whether shareable public links are supported' }
+    ],
+    comment: [
+      { name:'Thread model', desc:'Whether comments are threaded, flat, or inline' },
+      { name:'Resolution states', desc:'Whether comments can be resolved, reopened, or archived' },
+      { name:'Mention scope', desc:'Who can be @mentioned' },
+      { name:'Notification behavior', desc:'How and when users are notified' },
+      { name:'Visibility control', desc:'Whether comments can be private or internal-only' },
+      { name:'Edit & delete rules', desc:'Whether users can edit or delete after posting' }
+    ],
+    onboard: [
+      { name:'Flow trigger', desc:'What kicks off onboarding' },
+      { name:'Personalization depth', desc:'Whether onboarding adapts to role or goals' },
+      { name:'Progress mechanism', desc:'How progress is shown' },
+      { name:'Skip behavior', desc:'Whether users can skip steps' },
+      { name:'Empty state design', desc:'How the product guides users before any data' },
+      { name:'Time to first value', desc:'How quickly a user reaches a first outcome' }
+    ],
+    default: [
+      { name:'Core approach', desc:'The high-level method used to solve this problem' },
+      { name:'Configurability', desc:'How much users can customize this feature' },
+      { name:'Granularity', desc:'How fine-grained the controls are' },
+      { name:'Collaboration model', desc:'How multiple users interact together' },
+      { name:'Enterprise controls', desc:'Admin-level settings for larger orgs' }
+    ]
+  },
+
+  state: {
+    projects: [
+      { id:1, name:'Permissions', status:'ready', lastRun:'2 hours ago', competitorCount:4, setup:{
+        featureArea:'Permissions',
+        featureDescription:'',
+        competitors:[
+          {name:'Procore', urls:'support.procore.com/permissions'},
+          {name:'Autodesk CC', urls:'help.autodesk.com/construction-cloud/permissions'},
+          {name:'Notion', urls:'notion.so/help/sharing-and-permissions'},
+          {name:'Figma', urls:'help.figma.com/permissions'}
+        ],
+        attrs:['Permission scope','Restriction target','Role model','Inheritance','Override allowed','External sharing','Public links']
+      }},
+      { id:2, name:'Commenting & threads', status:'draft', lastRun:null, competitorCount:0, setup:null },
+      { id:3, name:'Onboarding flows', status:'running', lastRun:'Researching…', competitorCount:3, setup:null }
+    ],
+    activeId: 1,
+    tab: 'results',
+    step: 0,
+    featureArea: '',
+    featureDescription: '',
+    competitors: [{name:'', urls:''}],
+    attrs: null,
+    newAttr: '',
+    extraAttrs: [],
+    refineTarget: null,
+    refineEditValue: '',
+    refineNewSource: '',
+    refineReextracting: false,
+    showAddAttr: false,
+    addAttrName: '',
+    addAttrTargets: {},
+    showSources: false,
+    sourceDraft: {},
+    sourcesReextracting: false
+  },
+
+  /* ---- derived ---- */
+  activeProject(){ return this.state.projects.find(p => p.id === this.state.activeId); },
+  suggestedAttrs(){
+    const f = (this.state.featureArea || '').toLowerCase();
+    if (f.includes('permission') || f.includes('access') || f.includes('role')) return this.ATTR_SETS.permission;
+    if (f.includes('comment') || f.includes('thread') || f.includes('discussion')) return this.ATTR_SETS.comment;
+    if (f.includes('onboard')) return this.ATTR_SETS.onboard;
+    return this.ATTR_SETS.default;
+  },
+  activeAttrs(){ return this.state.attrs === null ? this.suggestedAttrs().map(a => a.name) : this.state.attrs; },
+  getCellValue(company, attrLabel){
+    const found = this.attributes.find(a => a.label === attrLabel);
+    if (found) return found.values[company] || { v:'—', c:null };
+    const extra = this.state.extraAttrs.find(a => a.label === attrLabel);
+    if (extra) return extra.values[company] || { v:'—', c:null };
+    return { v:'—', c:null };
+  },
+  setCellValue(company, attrLabel, value, confidence){
+    const found = this.attributes.find(a => a.label === attrLabel);
+    if (found) { found.values[company] = { v:value, c:confidence }; this.render(); return; }
+    const extra = this.state.extraAttrs.find(a => a.label === attrLabel);
+    if (extra) { extra.values[company] = { v:value, c:confidence }; this.render(); }
+  },
+
+  /* ---- mutations ---- */
+  onNew(){
+    const id = Date.now();
+    this.state.projects.unshift({ id, name:'Untitled project', status:'draft', lastRun:null, competitorCount:0, setup:null });
+    this.state.activeId = id; this.state.tab = 'setup'; this.state.step = 0;
+    this.state.featureArea = ''; this.state.featureDescription = '';
+    this.state.competitors = [{name:'', urls:''}]; this.state.attrs = null; this.state.newAttr = '';
+    this.render();
+  },
+  selectProject(id){
+    const p = this.state.projects.find(x => x.id === id);
+    this.state.activeId = id; this.state.tab = p.status === 'ready' ? 'results' : 'setup';
+    this.render();
+  },
+  setTab(tab){ this.state.tab = tab; this.render(); },
+  setStep(n){ this.state.step = n; this.render(); },
+  addCompetitor(){ if (this.state.competitors.length < 6) { this.state.competitors.push({name:'', urls:''}); this.render(); } },
+  removeCompetitor(i){ this.state.competitors.splice(i, 1); this.render(); },
+  removeAttr(name){ this.state.attrs = this.activeAttrs().filter(a => a !== name); this.render(); },
+  addAttr(){ const v = (this.state.newAttr || '').trim(); if (v) { this.state.attrs = [...this.activeAttrs(), v]; this.state.newAttr = ''; this.render(); } },
+
+  canProceed(){
+    const s = this.state;
+    if (s.step === 0) return !!s.featureArea.trim();
+    if (s.step === 1) return s.competitors.some(c => c.name.trim() && c.urls.trim());
+    return true;
+  },
+  onNextClick(){
+    if (!this.canProceed()) return;
+    if (this.state.step < 2) this.setStep(this.state.step + 1);
+    else this.completeOnboarding();
+  },
+  updateNextButtonState(){
+    const btn = document.getElementById('next-btn');
+    if (!btn) return;
+    const can = this.canProceed();
+    btn.disabled = !can;
+    btn.style.background = can ? 'var(--accent)' : '#ece0c8';
+    btn.style.color = can ? '#2a2218' : '#bcae97';
+    btn.style.cursor = can ? 'pointer' : 'not-allowed';
+  },
+
+  completeOnboarding(){
+    const s = this.state;
+    const data = { featureArea: s.featureArea.trim() || 'Untitled project', featureDescription: s.featureDescription.trim(), competitors: s.competitors, attrs: this.activeAttrs() };
+    const count = s.competitors.filter(c => c.name.trim()).length || s.competitors.length;
+    const p = s.projects.find(p => p.id === s.activeId);
+    p.name = data.featureArea; p.status = 'running'; p.competitorCount = count; p.lastRun = 'Researching…'; p.setup = data;
+    s.tab = 'researching';
+    this.render();
+  },
+  researchDone(){
+    const p = this.activeProject(); p.status = 'ready'; p.lastRun = 'Just now';
+    this.state.tab = 'results';
+    this.render();
+  },
+
+  openRefine(company, attr){
+    this.state.refineTarget = { company, attr };
+    this.state.refineEditValue = this.getCellValue(company, attr).v;
+    this.state.refineNewSource = '';
+    this.render();
+  },
+  closeRefine(){ this.state.refineTarget = null; this.render(); },
+  saveRefineValue(){
+    const rt = this.state.refineTarget; if (!rt) return;
+    const v = (this.state.refineEditValue || '').trim(); if (!v) return;
+    this.setCellValue(rt.company, rt.attr, v, 'manual');
+  },
+  addRefineSource(){
+    const rt = this.state.refineTarget; if (!rt) return;
+    const url = (this.state.refineNewSource || '').trim(); if (!url) return;
+    this.sources[rt.company] = [...(this.sources[rt.company] || []), { url, type:'added' }];
+    this.state.refineNewSource = '';
+    this.render();
+  },
+  reextractRefine(){
+    const rt = this.state.refineTarget; if (!rt) return;
+    this.state.refineReextracting = true;
+    this.render();
+    setTimeout(() => {
+      const cur = this.getCellValue(rt.company, rt.attr);
+      this.setCellValue(rt.company, rt.attr, cur.v, 'high');
+      this.state.refineReextracting = false;
+      this.render();
+    }, 900);
+  },
+
+  openSources(){ this.state.showSources = true; this.state.sourceDraft = {}; this.render(); },
+  closeSources(){ this.state.showSources = false; this.render(); },
+  addPanelSource(company){
+    const url = (this.state.sourceDraft[company] || '').trim(); if (!url) return;
+    this.sources[company] = [...(this.sources[company] || []), { url, type:'added' }];
+    this.state.sourceDraft[company] = '';
+    this.render();
+  },
+  reextractAll(){
+    this.state.sourcesReextracting = true;
+    this.render();
+    setTimeout(() => {
+      this.state.sourcesReextracting = false;
+      this.state.showSources = false;
+      this.render();
+    }, 1100);
+  },
+
+  openAddAttr(){
+    const t = {}; this.companies.forEach(c => t[c.name] = true);
+    this.state.showAddAttr = true; this.state.addAttrName = ''; this.state.addAttrTargets = t;
+    this.render();
+  },
+  closeAddAttr(){ this.state.showAddAttr = false; this.render(); },
+  toggleAddTarget(name){ this.state.addAttrTargets[name] = !this.state.addAttrTargets[name]; this.render(); },
+  extractAttr(){
+    const name = (this.state.addAttrName || '').trim() || 'New attribute';
+    const values = {};
+    this.companies.forEach(c => { values[c.name] = this.state.addAttrTargets[c.name] ? { v:'Pending review', c:'med' } : { v:'—', c:null }; });
+    this.state.extraAttrs.push({ label:name, values });
+    this.state.showAddAttr = false;
+    this.render();
+  },
+
+  /* ---- render ---- */
+  render(){
+    document.getElementById('root').innerHTML = this.renderApp();
+    this.updateNextButtonState();
+  },
+
+  renderApp(){
+    return '<div class="app">' + this.renderSidebar() +
+      '<div class="main">' + this.renderTopbar() + '<div class="content">' + this.renderContent() + '</div></div></div>' +
+      this.renderRefineDrawer() + this.renderSourcesPanel() + this.renderAddAttrModal();
+  },
+
+  renderSidebar(){
+    const s = this.state;
+    const items = s.projects.map(p => {
+      const active = p.id === s.activeId;
+      let meta;
+      if (p.status === 'draft') meta = 'Draft · not started';
+      else if (p.status === 'running') meta = p.competitorCount + ' competitors · researching…';
+      else meta = p.competitorCount + ' competitors' + (p.lastRun ? ' · ' + esc(p.lastRun) : '');
+      const dotColor = p.status === 'ready' ? '#86b06a' : p.status === 'running' ? 'var(--accent)' : '#6e6253';
+      return '<div class="project-item ' + (active ? 'active' : '') + '" onclick="App.selectProject(' + p.id + ')">' +
+        '<div class="project-row"><span class="project-name">' + esc(p.name) + '</span><span class="project-dot" style="background:' + dotColor + '"></span></div>' +
+        '<div class="project-meta">' + meta + '</div></div>';
+    }).join('');
+    return '<div class="sidebar">' +
+      '<div class="sidebar-header"><span class="sidebar-dot"></span><span class="sidebar-logo">SpecLens</span></div>' +
+      '<div class="sidebar-newwrap"><button class="btn-new" onclick="App.onNew()">+ New project</button></div>' +
+      '<div class="sidebar-label">Your projects</div>' +
+      '<div class="sidebar-projects">' + items + '</div>' +
+      '<div class="sidebar-footer">One project per feature area you\'re researching</div></div>';
+  },
+
+  renderTopbar(){
+    const s = this.state, ap = this.activeProject(), status = ap ? ap.status : 'draft';
+    const setupActive = s.tab === 'setup' || s.tab === 'researching';
+    const showResults = s.tab === 'results' && status === 'ready';
+    const badgeMap = { running:{text:'Running',bg:'#fbecd2',color:'#9a6516'}, ready:{text:'Ready',bg:'#e7efdd',color:'#4a6b32'}, draft:{text:'Draft',bg:'#f0e7d6',color:'#897b66'} };
+    const sb = badgeMap[status] || badgeMap.draft;
+    const showBadge = ap && (status === 'running' || status === 'ready');
+    const resultsClickable = status === 'ready';
+    return '<div class="topbar">' +
+      '<div class="topbar-left"><span class="topbar-title">' + esc(ap ? ap.name : 'SpecLens') + '</span>' +
+      (showBadge ? '<span class="status-badge" style="background:' + sb.bg + ';color:' + sb.color + '">' + sb.text + '</span>' : '') + '</div>' +
+      '<div class="tabs">' +
+      '<div class="tab ' + (setupActive ? 'active' : '') + '" onclick="App.setTab(\'setup\')">⚙ Setup</div>' +
+      '<div class="tab ' + (showResults ? 'active' : '') + '" style="cursor:' + (resultsClickable ? 'pointer' : 'default') + '" onclick="' + (resultsClickable ? "App.setTab('results')" : '') + '">▦ Results' +
+      (status === 'ready' ? '<span class="tab-count">' + this.companies.length + '</span>' : '') + '</div>' +
+      '</div></div>';
+  },
+
+  renderContent(){
+    const ap = this.activeProject(), status = ap ? ap.status : 'draft', s = this.state;
+    const showOnboarding = s.tab === 'setup' && status === 'draft';
+    const showRecap = s.tab === 'setup' && status === 'ready';
+    const showResearching = s.tab === 'researching' || (s.tab === 'setup' && status === 'running');
+    const showResults = s.tab === 'results' && status === 'ready';
+    if (showOnboarding) return this.renderOnboarding();
+    if (showResearching) return this.renderResearching();
+    if (showRecap) return this.renderRecap();
+    if (showResults) return this.renderResults();
+    return '';
+  },
+
+  renderOnboarding(){
+    const s = this.state;
+    const stepTitles = ['What feature are you researching?', 'Who are you comparing?', 'Attributes to extract'];
+    const stepSubs = [
+      'This tells the AI what to look for across every source it reads. You can rename it later.',
+      'Add competitors and a few seed URLs each — the AI will crawl further from there.',
+      "Define what to extract, or let the AI suggest dimensions once it's seen your sources."
+    ];
+    const dots = [0,1,2].map(i => '<div class="dot ' + (s.step >= i ? 'filled' : '') + '"></div>').join('');
+
+    let stepBody = '';
+    if (s.step === 0) {
+      stepBody =
+        '<div class="field"><label>Feature area</label>' +
+        '<input type="text" value="' + esc(s.featureArea) + '" oninput="App.state.featureArea=this.value; App.updateNextButtonState();" placeholder="e.g. Permissions, Commenting, Onboarding flows">' +
+        '<div class="hint">This becomes your project name in the sidebar</div></div>' +
+        '<div class="field"><label>Description <span class="opt">(optional)</span></label>' +
+        '<textarea oninput="App.state.featureDescription=this.value;" placeholder="Add context that helps the AI search more precisely — specific workflows, edge cases, or anything you already know competitors handle differently.">' + esc(s.featureDescription) + '</textarea>' +
+        '<div class="hint">Helps the AI crawl and extract more accurately</div></div>';
+    } else if (s.step === 1) {
+      const cards = s.competitors.map((c, i) =>
+        '<div class="competitor-card"><div class="competitor-head"><span class="competitor-num">Competitor ' + (i+1) + '</span>' +
+        (s.competitors.length > 1 ? '<button class="remove-x" onclick="App.removeCompetitor(' + i + ')">×</button>' : '') + '</div>' +
+        '<label>Company name</label>' +
+        '<input type="text" value="' + esc(c.name) + '" oninput="App.state.competitors[' + i + '].name=this.value; App.updateNextButtonState();" placeholder="e.g. Procore">' +
+        '<label>Seed URLs</label>' +
+        '<textarea oninput="App.state.competitors[' + i + '].urls=this.value; App.updateNextButtonState();" placeholder="https://help.example.com/permissions">' + esc(c.urls) + '</textarea></div>'
+      ).join('');
+      stepBody = cards + (s.competitors.length < 6 ? '<button class="btn-dashed" onclick="App.addCompetitor()">+ Add competitor</button>' : '');
+    } else {
+      const suggestSet = this.suggestedAttrs();
+      const attrPills = this.activeAttrs().map(name => {
+        const meta = suggestSet.find(a => a.name === name);
+        return '<span class="pill" title="' + esc(meta ? meta.desc : 'Custom attribute') + '">' + esc(name) + '<span class="x" onclick="App.removeAttr(\'' + esc(name).replace(/'/g,"\\'") + '\')">×</span></span>';
+      }).join('');
+      stepBody =
+        '<div class="field"><label>Attributes to extract</label>' +
+        '<div class="note" style="margin-bottom:14px;"><span>✦</span><span>Suggested for a "' + esc(s.featureArea || 'this') + '" comparison — hover a chip for what it means. Remove any that don\'t apply, or add your own.</span></div>' +
+        '<div class="pills">' + attrPills + '</div>' +
+        '<div class="add-row"><input type="text" value="' + esc(s.newAttr) + '" oninput="App.state.newAttr=this.value;" onkeydown="if(event.key===\'Enter\')App.addAttr();" placeholder="Add an attribute, e.g. Mobile support">' +
+        '<button class="btn-soft" onclick="App.addAttr()">Add</button></div></div>' +
+        '<div class="field"><label>Research depth</label>' +
+        '<div class="note"><span>✦</span><span>Each seed URL is crawled one level deep automatically, so the AI also reads linked sub-pages your competitors didn\'t hand you directly.</span></div></div>';
+    }
+
+    const canNext = this.canProceed();
+    const nextLabel = s.step < 2 ? 'Continue →' : 'Start research →';
+
+    return '<div class="screen"><div class="screen-inner">' +
+      '<div class="progress-dots">' + dots + '</div>' +
+      '<div class="step-label">Step ' + (s.step + 1) + ' of 3</div>' +
+      '<div class="step-title">' + esc(stepTitles[s.step]) + '</div>' +
+      '<div class="step-sub">' + esc(stepSubs[s.step]) + '</div>' +
+      stepBody +
+      '<div class="footer-nav">' +
+      (s.step > 0 ? '<button class="btn-back" onclick="App.setStep(' + (s.step - 1) + ')">← Back</button>' : '<span></span>') +
+      '<button id="next-btn" class="btn-next" ' + (canNext ? '' : 'disabled') +
+      ' style="background:' + (canNext ? 'var(--accent)' : '#ece0c8') + ';color:' + (canNext ? '#2a2218' : '#bcae97') + ';cursor:' + (canNext ? 'pointer' : 'not-allowed') + '" onclick="App.onNextClick()">' + nextLabel + '</button>' +
+      '</div></div></div>';
+  },
+
+  renderResearching(){
+    const ap = this.activeProject();
+    const firstName = (ap && ap.setup && ap.setup.competitors[0] && ap.setup.competitors[0].name) || 'Procore';
+    const items = [
+      { label:'Reading seed URLs for ' + firstName, status:'done', meta:'6 pages' },
+      { label:'Discovering related pages (1 level deep)', status:'done', meta:'+19 pages' },
+      { label:'Searching the web for additional sources', status:'done', meta:'8 found' },
+      { label:'Extracting attributes per competitor', status:'active', meta:'2 of 4' },
+      { label:'Scoring confidence on each value', status:'pending', meta:'' },
+      { label:'Assembling your comparison matrix', status:'pending', meta:'' }
+    ];
+    const rows = items.map(it => {
+      const icon = it.status === 'done' ? '✓' : '';
+      const iconBg = it.status === 'done' ? 'var(--accent)' : 'transparent';
+      const iconBorder = it.status === 'done' ? 'none' : it.status === 'active' ? '2px solid var(--accent)' : '2px solid #ecdcbd';
+      const labelColor = it.status === 'pending' ? '#bcae97' : it.status === 'active' ? '#2a2218' : '#3a3224';
+      const labelWeight = it.status === 'active' ? 600 : 400;
+      return '<div class="research-item"><span class="research-icon" style="background:' + iconBg + ';border:' + iconBorder + '">' + icon + '</span>' +
+        '<span class="research-label" style="color:' + labelColor + ';font-weight:' + labelWeight + '">' + esc(it.label) + '</span>' +
+        '<span class="research-meta">' + esc(it.meta) + '</span></div>';
+    }).join('');
+    return '<div class="screen"><div class="screen-inner">' +
+      '<div class="research-title">Researching ' + esc(ap ? ap.name : 'this feature') + '…</div>' +
+      '<div class="research-sub">' + (ap ? (ap.competitorCount || 4) : 4) + ' competitors · this usually takes 1–3 minutes</div>' +
+      '<div>' + rows + '</div>' +
+      '<button class="btn-primary" style="margin-top:28px;" onclick="App.researchDone()">Preview results (demo) →</button>' +
+      '<div class="leave-note"><span style="color:#9a6516;font-size:14px;">✦</span><span>You can leave this page — we\'ll mark the project ready in the sidebar when the matrix is done.</span></div>' +
+      '</div></div>';
+  },
+
+  renderRecap(){
+    const ap = this.activeProject();
+    const setup = ap && ap.setup ? ap.setup : { featureArea: ap ? ap.name : '', featureDescription:'', competitors:[], attrs:[] };
+    const competitorsHtml = (setup.competitors || []).map(c =>
+      '<div class="recap-competitor"><div class="recap-competitor-name">' + esc(c.name) + '</div><div class="recap-competitor-urls">' + esc(c.urls) + '</div></div>'
+    ).join('');
+    const attrsHtml = (setup.attrs || []).map(a => '<span class="pill">' + esc(a) + '</span>').join('');
+    const descHtml = setup.featureDescription && setup.featureDescription.trim()
+      ? '<div class="recap-section"><div class="recap-label">Description</div><div class="recap-box" style="font-weight:400;line-height:1.55;">' + esc(setup.featureDescription) + '</div></div>'
+      : '';
+    return '<div class="screen"><div class="screen-inner">' +
+      '<div class="recap-title">Research setup</div>' +
+      '<div class="recap-sub">What this comparison was built from. Edit anything and re-run to refresh the matrix.</div>' +
+      '<div class="recap-section"><div class="recap-label">Feature area</div><div class="recap-box">' + esc(setup.featureArea) + '</div></div>' +
+      descHtml +
+      '<div class="recap-section"><div class="recap-label">Competitors</div>' + competitorsHtml + '</div>' +
+      '<div class="recap-section"><div class="recap-label">Attributes</div><div class="pills">' + attrsHtml + '</div></div>' +
+      '<div class="recap-section"><div class="recap-label">Research depth</div><div class="recap-box" style="font-weight:400;">Seed URLs + 1 level deep (automatic)</div></div>' +
+      '<button class="btn-primary" onclick="App.setTab(\'results\')">View results →</button>' +
+      '</div></div>';
+  },
+
+  renderResults(){
+    const conf = { high:{bg:'#e7efdd',color:'#4a6b32',label:'HIGH'}, med:{bg:'#fce9c8',color:'#9a6516',label:'MED'}, low:{bg:'#f8ded4',color:'#a8432a',label:'LOW'}, manual:{bg:'#e3e8f5',color:'#3a4a8c',label:'EDITED'} };
+
+    const headerCells = this.companies.map(c => {
+      const srcs = this.sources[c.name] || [];
+      const seed = srcs.filter(x => x.type === 'seed').length, crawled = srcs.filter(x => x.type === 'crawled').length, added = srcs.filter(x => x.type === 'added').length;
+      const parts = [];
+      if (seed) parts.push(seed + ' seed');
+      if (crawled) parts.push(crawled + ' crawled');
+      if (added) parts.push(added + ' added');
+      return '<div class="mh-company"><div class="mh-company-name">' + esc(c.name) + '</div><span class="mh-gtm" style="background:' + c.gtmColor + '">' + esc(c.gtm) + '</span><div class="mh-sources">' + esc(parts.join(' · ')) + '</div></div>';
+    }).join('');
+
+    const totalSources = this.companies.reduce((n, c) => n + (this.sources[c.name] || []).length, 0);
+
+    const allAttrs = [...this.attributes, ...this.state.extraAttrs];
+    const summaryCells = this.companies.map(co => '<div class="m-cell"><span class="m-cell-inner static">' + esc(co.summary) + '</span></div>').join('');
+    const attrRowsHtml = allAttrs.map(a => {
+      const cells = this.companies.map(co => {
+        const cell = a.values[co.name] || { v:'—', c:null };
+        const cc = cell.c ? conf[cell.c] : null;
+        const chip = cc ? '<span class="chip" style="background:' + cc.bg + ';color:' + cc.color + '">' + cc.label + '</span>' : '';
+        return '<div class="m-cell"><span class="m-cell-inner" onclick="App.openRefine(\'' + esc(co.name).replace(/'/g,"\\'") + '\',\'' + esc(a.label).replace(/'/g,"\\'") + '\')">' + esc(cell.v) + chip + '</span></div>';
+      }).join('');
+      return '<div class="m-rowlabel">' + esc(a.label) + '</div>' + cells;
+    }).join('');
+
+    const gridCols = '148px repeat(' + this.companies.length + ', minmax(150px, 1fr))';
+
+    return '<div class="results">' +
+      '<div class="results-toolbar">' +
+      '<div class="filters"><span class="filter-pill">GTM: All ▾</span><span class="filter-pill">Stage: All ▾</span></div>' +
+      '<div class="toolbar-actions">' +
+      '<span class="btn-toolbar">⬇ Export CSV</span><span class="btn-toolbar">⧉ Copy summary</span>' +
+      '<button class="btn-toolbar" onclick="App.openSources()">🔗 Sources<span class="count-badge">' + totalSources + '</span></button>' +
+      '<button class="btn-add-attr" onclick="App.openAddAttr()">+ Add attribute</button>' +
+      '</div></div>' +
+      '<div class="matrix-wrap"><div class="matrix" style="grid-template-columns:' + gridCols + '">' +
+      '<div class="mh-attr">Attribute</div>' + headerCells +
+      '<div class="m-rowlabel">Summary</div>' + summaryCells +
+      attrRowsHtml +
+      '<div class="m-addrow" onclick="App.openAddAttr()">+ Add an attribute to compare</div>' +
+      '</div></div>' +
+      '<div class="legend"><span class="legend-label">Confidence</span>' +
+      '<span class="legend-item"><span class="chip" style="background:#e7efdd;color:#4a6b32">HIGH</span>well-sourced</span>' +
+      '<span class="legend-item"><span class="chip" style="background:#fce9c8;color:#9a6516">MED</span>worth a glance</span>' +
+      '<span class="legend-item"><span class="chip" style="background:#f8ded4;color:#a8432a">LOW</span>verify directly</span>' +
+      '<span class="legend-hint">Click any value to see its sources or refine it</span></div>' +
+      '</div>';
+  },
+
+  renderRefineDrawer(){
+    const conf = { high:{bg:'#e7efdd',color:'#4a6b32',label:'HIGH'}, med:{bg:'#fce9c8',color:'#9a6516',label:'MED'}, low:{bg:'#f8ded4',color:'#a8432a',label:'LOW'}, manual:{bg:'#e3e8f5',color:'#3a4a8c',label:'EDITED'} };
+    const rt = this.state.refineTarget;
+    if (!rt) return '';
+    const val = this.getCellValue(rt.company, rt.attr);
+    const cc = val.c ? conf[val.c] : null;
+    const chip = cc ? '<span class="chip" style="background:' + cc.bg + ';color:' + cc.color + '">' + cc.label + '</span>' : '';
+    const srcs = (this.sources[rt.company] || []).map(s => {
+      const m = this.SOURCE_BADGE[s.type] || this.SOURCE_BADGE.added;
+      return '<div class="source-row"><span>↗ ' + esc(s.url) + '</span><span class="source-badge" style="background:' + m.bg + ';color:' + m.color + '">' + m.label + '</span></div>';
+    }).join('');
+    return '<div class="overlay" onclick="App.closeRefine()"><div class="drawer" onclick="event.stopPropagation()">' +
+      '<div class="drawer-head"><div class="drawer-title">Fix this attribute</div><button class="drawer-close" onclick="App.closeRefine()">×</button></div>' +
+      '<div class="drawer-sub">' + esc(rt.company) + ' · ' + esc(rt.attr) + '</div>' +
+      '<div class="value-box"><div class="value-box-label">Current value</div><div class="value-box-val">' + esc(val.v) + chip + '</div></div>' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#4f4434;margin-bottom:8px;">Overwrite this value</label>' +
+      '<textarea style="min-height:56px;margin-bottom:10px;" oninput="App.state.refineEditValue=this.value;">' + esc(this.state.refineEditValue) + '</textarea>' +
+      '<button class="btn-block" style="background:var(--accent);color:#2a2218;" onclick="App.saveRefineValue()">Save value</button>' +
+      '<div class="or-divider"><div class="or-line"></div><span class="or-text">or</span><div class="or-line"></div></div>' +
+      '<div class="value-box-label" style="margin-bottom:8px;">Sources used</div>' + srcs +
+      '<div class="add-source-row"><input type="text" value="' + esc(this.state.refineNewSource) + '" oninput="App.state.refineNewSource=this.value;" placeholder="Add another source URL">' +
+      '<button class="btn-soft" onclick="App.addRefineSource()">+ Add</button></div>' +
+      '<button class="btn-block ghost" onclick="App.reextractRefine()">' + (this.state.refineReextracting ? 'Re-extracting…' : 'Re-extract with these sources') + '</button>' +
+      '</div></div>';
+  },
+
+  renderSourcesPanel(){
+    if (!this.state.showSources) return '';
+    const groups = this.companies.map(c => {
+      const srcs = (this.sources[c.name] || []).map(s => {
+        const m = this.SOURCE_BADGE[s.type] || this.SOURCE_BADGE.added;
+        return '<div class="source-row"><span>↗ ' + esc(s.url) + '</span><span class="source-badge" style="background:' + m.bg + ';color:' + m.color + '">' + m.label + '</span></div>';
+      }).join('');
+      const draft = this.state.sourceDraft[c.name] || '';
+      return '<div style="margin-bottom:20px;"><div style="font-size:13px;font-weight:700;margin-bottom:9px;">' + esc(c.name) + '</div>' + srcs +
+        '<div class="add-source-row" style="margin-top:10px;"><input type="text" value="' + esc(draft) + '" oninput="App.state.sourceDraft[\'' + esc(c.name).replace(/'/g,"\\'") + '\']=this.value;" placeholder="Add a URL for ' + esc(c.name) + '">' +
+        '<button class="btn-soft" onclick="App.addPanelSource(\'' + esc(c.name).replace(/'/g,"\\'") + '\')">+ Add</button></div></div>';
+    }).join('');
+    return '<div class="overlay" onclick="App.closeSources()"><div class="drawer" onclick="event.stopPropagation()">' +
+      '<div class="drawer-head"><div class="drawer-title">Sources</div><button class="drawer-close" onclick="App.closeSources()">×</button></div>' +
+      '<div class="drawer-sub">Every page used across this research — what you gave it, and what it found on its own. Add more and re-extract to refresh the matrix.</div>' +
+      groups +
+      '<button class="btn-block" style="background:var(--accent);color:#2a2218;margin-top:6px;" onclick="App.reextractAll()">' + (this.state.sourcesReextracting ? 'Re-extracting…' : 'Re-extract with new sources →') + '</button>' +
+      '</div></div>';
+  },
+
+  renderAddAttrModal(){
+    if (!this.state.showAddAttr) return '';
+    const targets = this.companies.map(c => {
+      const on = !!this.state.addAttrTargets[c.name];
+      return '<label class="checkbox-row" onclick="App.toggleAddTarget(\'' + esc(c.name).replace(/'/g,"\\'") + '\')"><span class="checkbox ' + (on ? 'checked' : '') + '">' + (on ? '✓' : '') + '</span>' + esc(c.name) + '</label>';
+    }).join('');
+    return '<div class="overlay" onclick="App.closeAddAttr()"><div class="drawer" onclick="event.stopPropagation()">' +
+      '<div class="drawer-head"><div class="drawer-title">Add a dimension</div><button class="drawer-close" onclick="App.closeAddAttr()">×</button></div>' +
+      '<div class="drawer-sub">Extract a new attribute across some or all competitors</div>' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#4f4434;margin-bottom:8px;">New attribute</label>' +
+      '<input type="text" style="margin-bottom:18px;" value="' + esc(this.state.addAttrName) + '" oninput="App.state.addAttrName=this.value;" placeholder="e.g. Mobile permission support">' +
+      '<label style="display:block;font-size:12px;font-weight:700;color:#4f4434;margin-bottom:10px;">Apply to</label>' +
+      '<div style="margin-bottom:20px;">' + targets + '</div>' +
+      '<button class="btn-block" style="background:var(--accent);color:#2a2218;" onclick="App.extractAttr()">Extract this attribute</button>' +
+      '</div></div>';
+  }
+};
+
+window.App = App;
+document.addEventListener('DOMContentLoaded', () => App.render());
+</script>
+</body>
+</html>
