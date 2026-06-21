@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import prototypeHtml from "@/assets/speclens-prototype.html?raw";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/")({
 function SpecLensPage() {
   return (
     <iframe
-      src="/speclens-prototype.html"
+      srcDoc={prototypeHtml}
       title="SpecLens"
       style={{
         position: "fixed",
@@ -34,3 +35,4 @@ function SpecLensPage() {
     />
   );
 }
+
