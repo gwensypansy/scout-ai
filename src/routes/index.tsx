@@ -1,23 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import "@/styles/speclens.css";
 import {
   addAttributeWithValues,
   addSource,
-  completeOnboarding,
   createProject,
   getExtractedValue,
   listProjects,
   loadProjectData,
-  mockExtractAll,
   relinkCellSources,
   saveCellValue,
+  saveCompetitorsAndSeeds,
+  saveConfirmedAttributes,
   type Confidence,
   type ProjectData,
   type ProjectSummary,
   type SourceType,
 } from "@/lib/speclens/api";
-import { suggestedAttrsFor, type SuggestedAttr } from "@/lib/speclens/suggested-attrs";
+import { runStage1, runStage2 } from "@/lib/speclens/research.functions";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Tab = "setup" | "researching" | "results";
+type AttrChip = { label: string; description: string | null; is_custom: boolean };
 
 const CONF: Record<Confidence, { bg: string; color: string; label: string }> = {
   high: { bg: "#e7efdd", color: "#4a6b32", label: "HIGH" },
@@ -63,6 +65,9 @@ function timeAgo(iso: string | null): string {
 }
 
 function SpecLensPage() {
+  const stage1Fn = useServerFn(runStage1);
+  const stage2Fn = useServerFn(runStage2);
+
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("setup");
@@ -73,8 +78,12 @@ function SpecLensPage() {
   const [featureArea, setFeatureArea] = useState("");
   const [featureDescription, setFeatureDescription] = useState("");
   const [wizCompetitors, setWizCompetitors] = useState<{ name: string; urls: string }[]>([{ name: "", urls: "" }]);
-  const [attrs, setAttrs] = useState<string[] | null>(null);
+  const [attrs, setAttrs] = useState<AttrChip[]>([]);
   const [newAttr, setNewAttr] = useState("");
+
+  // ai state
+  const [stageBusy, setStageBusy] = useState<null | "stage1" | "stage2">(null);
+  const [stageError, setStageError] = useState<string | null>(null);
 
   // drawer state
   const [refineTarget, setRefineTarget] = useState<{ competitorId: string; attributeId: string } | null>(null);
@@ -89,7 +98,6 @@ function SpecLensPage() {
   const [showSources, setShowSources] = useState(false);
   const [sourceDraft, setSourceDraft] = useState<Record<string, string>>({});
 
-  // load project list
   async function refreshProjects(selectId?: string | null) {
     const list = await listProjects();
     setProjects(list);
@@ -101,32 +109,29 @@ function SpecLensPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // load active project data
   async function refreshData(id: string | null) {
     if (!id) { setData(null); return; }
     const d = await loadProjectData(id);
     setData(d);
     if (d) {
       if (d.project.status === "ready") setTab((t) => (t === "researching" ? "results" : t));
-      // pre-fill wizard if draft (so refresh during setup keeps name/desc)
       if (d.project.status === "draft") {
         setStep(0);
         setFeatureArea(d.project.name === "Untitled project" ? "" : d.project.name);
         setFeatureDescription(d.project.feature_description ?? "");
         setWizCompetitors([{ name: "", urls: "" }]);
-        setAttrs(null);
+        setAttrs([]);
+        setStageError(null);
       }
     }
   }
   useEffect(() => {
     refreshData(activeId);
-    // when switching project, default tab based on status
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeId) ?? null, [projects, activeId]);
 
-  // sidebar tab default
   useEffect(() => {
     if (!activeProject) return;
     if (activeProject.status === "ready") setTab("results");
@@ -134,46 +139,79 @@ function SpecLensPage() {
     else setTab("setup");
   }, [activeProject?.id, activeProject?.status]);
 
-  const suggestSet = useMemo<SuggestedAttr[]>(() => suggestedAttrsFor(featureArea), [featureArea]);
-  const activeAttrs = attrs === null ? suggestSet.map((a) => a.name) : attrs;
-
   function canProceed() {
     if (step === 0) return !!featureArea.trim();
     if (step === 1) return wizCompetitors.some((c) => c.name.trim() && c.urls.trim());
+    if (step === 2) return attrs.length > 0;
     return true;
   }
 
   async function handleNew() {
     const p = await createProject();
     setStep(0); setFeatureArea(""); setFeatureDescription("");
-    setWizCompetitors([{ name: "", urls: "" }]); setAttrs(null); setNewAttr("");
+    setWizCompetitors([{ name: "", urls: "" }]); setAttrs([]); setNewAttr("");
+    setStageError(null);
     setTab("setup");
     await refreshProjects(p.id);
   }
 
-  async function handleComplete() {
+  // Step 1 → 2: persist competitors+seeds, run Stage 1, populate attribute chips.
+  async function handleAfterCompetitors() {
     if (!activeId) return;
-    const payload = {
-      featureArea: featureArea.trim() || "Untitled project",
-      featureDescription: featureDescription.trim(),
-      competitors: wizCompetitors,
-      attrs: activeAttrs.map((label) => {
-        const meta = suggestSet.find((s) => s.name === label);
-        return { label, description: meta?.desc ?? null, is_custom: !meta };
-      }),
-    };
-    await completeOnboarding(activeId, payload);
-    setTab("researching");
-    await refreshProjects(activeId);
-    await refreshData(activeId);
+    setStageError(null);
+    setStageBusy("stage1");
+    try {
+      await saveCompetitorsAndSeeds(activeId, featureArea.trim() || "Untitled project", featureDescription.trim(), wizCompetitors);
+      const res = await stage1Fn({ data: { projectId: activeId } });
+      const suggested = (res.suggestions ?? []).map((s) => ({
+        label: s.label,
+        description: s.description ?? null,
+        is_custom: false,
+      }));
+      setAttrs(suggested);
+      setStep(2);
+      await refreshProjects(activeId);
+      await refreshData(activeId);
+    } catch (e) {
+      setStageError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStageBusy(null);
+    }
   }
 
-  async function handleResearchDone() {
+  // Step 2 → research: persist attrs, run Stage 2, show results.
+  async function handleStartResearch() {
     if (!activeId) return;
-    await mockExtractAll(activeId);
-    setTab("results");
-    await refreshProjects(activeId);
-    await refreshData(activeId);
+    setStageError(null);
+    setStageBusy("stage2");
+    setTab("researching");
+    try {
+      await saveConfirmedAttributes(activeId, attrs);
+      await stage2Fn({ data: { projectId: activeId } });
+      await refreshProjects(activeId);
+      await refreshData(activeId);
+      setTab("results");
+    } catch (e) {
+      setStageError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStageBusy(null);
+    }
+  }
+
+  async function retryStage2() {
+    if (!activeId) return;
+    setStageError(null);
+    setStageBusy("stage2");
+    try {
+      await stage2Fn({ data: { projectId: activeId } });
+      await refreshProjects(activeId);
+      await refreshData(activeId);
+      setTab("results");
+    } catch (e) {
+      setStageError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStageBusy(null);
+    }
   }
 
   async function openRefine(competitorId: string, attributeId: string) {
@@ -182,7 +220,6 @@ function SpecLensPage() {
     setRefineNewSource("");
     setRefineTarget({ competitorId, attributeId });
   }
-
   async function saveRefineValue() {
     if (!refineTarget) return;
     const v = refineEditValue.trim();
@@ -190,7 +227,6 @@ function SpecLensPage() {
     await saveCellValue(refineTarget.attributeId, refineTarget.competitorId, v, "manual");
     await refreshData(activeId);
   }
-
   async function addRefineSource() {
     if (!refineTarget) return;
     const url = refineNewSource.trim(); if (!url) return;
@@ -198,11 +234,9 @@ function SpecLensPage() {
     setRefineNewSource("");
     await refreshData(activeId);
   }
-
   async function reextractRefine() {
     if (!refineTarget) return;
     setRefineBusy(true);
-    // mock: bump confidence to high, re-link to all current sources
     const ev = await getExtractedValue(refineTarget.attributeId, refineTarget.competitorId);
     if (ev) {
       await saveCellValue(refineTarget.attributeId, refineTarget.competitorId, ev.value, "high");
@@ -227,7 +261,6 @@ function SpecLensPage() {
     setShowAddAttr(false);
     await refreshData(activeId);
   }
-
   async function addPanelSource(competitorId: string) {
     const url = (sourceDraft[competitorId] ?? "").trim();
     if (!url) return;
@@ -235,8 +268,6 @@ function SpecLensPage() {
     setSourceDraft((d) => ({ ...d, [competitorId]: "" }));
     await refreshData(activeId);
   }
-
-  // ----------- render helpers -----------
 
   function projectMeta(p: ProjectSummary) {
     if (p.status === "draft") return "Draft · not started";
@@ -253,7 +284,6 @@ function SpecLensPage() {
   return (
     <div className="speclens-root">
       <div className="app">
-        {/* sidebar */}
         <div className="sidebar">
           <div className="sidebar-header">
             <span className="sidebar-dot" /><span className="sidebar-logo">SpecLens</span>
@@ -280,7 +310,6 @@ function SpecLensPage() {
           <div className="sidebar-footer">One project per feature area you're researching</div>
         </div>
 
-        {/* main */}
         <div className="main">
           <div className="topbar">
             <div className="topbar-left">
@@ -299,21 +328,14 @@ function SpecLensPage() {
               )}
             </div>
             <div className="tabs">
-              <div
-                className={"tab" + (tab === "setup" || tab === "researching" ? " active" : "")}
-                onClick={() => setTab("setup")}
-              >
-                ⚙ Setup
-              </div>
+              <div className={"tab" + (tab === "setup" || tab === "researching" ? " active" : "")} onClick={() => setTab("setup")}>⚙ Setup</div>
               <div
                 className={"tab" + (showResults ? " active" : "")}
                 style={{ cursor: status === "ready" ? "pointer" : "default" }}
                 onClick={() => status === "ready" && setTab("results")}
               >
                 ▦ Results
-                {status === "ready" && data && (
-                  <span className="tab-count">{data.competitors.length}</span>
-                )}
+                {status === "ready" && data && (<span className="tab-count">{data.competitors.length}</span>)}
               </div>
             </div>
           </div>
@@ -338,18 +360,29 @@ function SpecLensPage() {
                 setFeatureDescription={setFeatureDescription}
                 competitors={wizCompetitors}
                 setCompetitors={setWizCompetitors}
-                attrs={activeAttrs}
-                setAttrs={(next) => setAttrs(next)}
+                attrs={attrs}
+                setAttrs={setAttrs}
                 newAttr={newAttr}
                 setNewAttr={setNewAttr}
-                suggestSet={suggestSet}
                 canProceed={canProceed()}
-                onNext={() => { if (!canProceed()) return; if (step < 2) setStep(step + 1); else handleComplete(); }}
+                stageBusy={stageBusy}
+                stageError={stageError}
+                onNext={() => {
+                  if (!canProceed()) return;
+                  if (step === 0) setStep(1);
+                  else if (step === 1) handleAfterCompetitors();
+                  else handleStartResearch();
+                }}
               />
             )}
 
             {activeProject && showResearching && (
-              <Researching project={activeProject} onPreview={handleResearchDone} />
+              <Researching
+                project={activeProject}
+                busy={stageBusy === "stage2"}
+                error={stageError}
+                onRetry={retryStage2}
+              />
             )}
 
             {activeProject && showRecap && data && <Recap data={data} onView={() => setTab("results")} />}
@@ -361,7 +394,6 @@ function SpecLensPage() {
         </div>
       </div>
 
-      {/* drawers */}
       {refineTarget && data && (
         <RefineDrawer
           data={data}
@@ -409,19 +441,21 @@ function Onboarding(props: {
   featureArea: string; setFeatureArea: (s: string) => void;
   featureDescription: string; setFeatureDescription: (s: string) => void;
   competitors: { name: string; urls: string }[]; setCompetitors: (c: { name: string; urls: string }[]) => void;
-  attrs: string[]; setAttrs: (a: string[]) => void;
+  attrs: AttrChip[]; setAttrs: (a: AttrChip[]) => void;
   newAttr: string; setNewAttr: (s: string) => void;
-  suggestSet: SuggestedAttr[];
-  canProceed: boolean; onNext: () => void;
+  canProceed: boolean;
+  stageBusy: null | "stage1" | "stage2";
+  stageError: string | null;
+  onNext: () => void;
 }) {
   const { step, setStep, featureArea, setFeatureArea, featureDescription, setFeatureDescription,
-    competitors, setCompetitors, attrs, setAttrs, newAttr, setNewAttr, suggestSet, canProceed, onNext } = props;
+    competitors, setCompetitors, attrs, setAttrs, newAttr, setNewAttr, canProceed, stageBusy, stageError, onNext } = props;
 
   const titles = ["What feature are you researching?", "Who are you comparing?", "Attributes to extract"];
   const subs = [
     "This tells the AI what to look for across every source it reads. You can rename it later.",
     "Add competitors and a few seed URLs each — the AI will crawl further from there.",
-    "Define what to extract, or let the AI suggest dimensions once it's seen your sources.",
+    "These were suggested by AI from your seed sources. Remove any that don't apply, or add your own.",
   ];
 
   function addCompetitor() { if (competitors.length < 6) setCompetitors([...competitors, { name: "", urls: "" }]); }
@@ -429,8 +463,18 @@ function Onboarding(props: {
   function updateCompetitor(i: number, patch: Partial<{ name: string; urls: string }>) {
     setCompetitors(competitors.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   }
-  function removeAttr(name: string) { setAttrs(attrs.filter((a) => a !== name)); }
-  function addAttr() { const v = newAttr.trim(); if (v) { setAttrs([...attrs, v]); setNewAttr(""); } }
+  function removeAttr(label: string) { setAttrs(attrs.filter((a) => a.label !== label)); }
+  function addAttr() {
+    const v = newAttr.trim();
+    if (v && !attrs.some((a) => a.label.toLowerCase() === v.toLowerCase())) {
+      setAttrs([...attrs, { label: v, description: null, is_custom: true }]);
+      setNewAttr("");
+    }
+  }
+
+  const busy = stageBusy !== null;
+  const cta = step < 2 ? "Continue →" : "Start research →";
+  const ctaBusy = step === 1 && stageBusy === "stage1" ? "Suggesting attributes…" : busy ? "Working…" : cta;
 
   return (
     <div className="screen"><div className="screen-inner">
@@ -472,17 +516,15 @@ function Onboarding(props: {
         <div className="field">
           <label>Attributes to extract</label>
           <div className="note" style={{ marginBottom: 14 }}>
-            <span>✦</span><span>Suggested for a "{featureArea || "this"}" comparison — hover a chip for what it means. Remove any that don't apply, or add your own.</span>
+            <span>✦</span><span>Suggested by AI based on your seed sources. Hover a chip for what it means.</span>
           </div>
+          {attrs.length === 0 && <div className="hint">No attributes yet — add at least one to continue.</div>}
           <div className="pills">
-            {attrs.map((name) => {
-              const meta = suggestSet.find((a) => a.name === name);
-              return (
-                <span key={name} className="pill" title={meta ? meta.desc : "Custom attribute"}>
-                  {name}<span className="x" onClick={() => removeAttr(name)}>×</span>
-                </span>
-              );
-            })}
+            {attrs.map((a) => (
+              <span key={a.label} className="pill" title={a.description ?? "Custom attribute"}>
+                {a.label}<span className="x" onClick={() => removeAttr(a.label)}>×</span>
+              </span>
+            ))}
           </div>
           <div className="add-row">
             <input type="text" value={newAttr} onChange={(e) => setNewAttr(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addAttr(); }} placeholder="Add an attribute, e.g. Mobile support" />
@@ -495,19 +537,25 @@ function Onboarding(props: {
         </div>
       </>)}
 
+      {stageError && (
+        <div className="note" style={{ marginTop: 16, background: "#fbe5dc", color: "#8a3018", border: "1px solid #f0c6b7" }}>
+          <span>⚠</span><span>{stageError}</span>
+        </div>
+      )}
+
       <div className="footer-nav">
-        {step > 0 ? <button className="btn-back" onClick={() => setStep(step - 1)}>← Back</button> : <span />}
+        {step > 0 ? <button className="btn-back" onClick={() => setStep(step - 1)} disabled={busy}>← Back</button> : <span />}
         <button
           className="btn-next"
-          disabled={!canProceed}
+          disabled={!canProceed || busy}
           style={{
-            background: canProceed ? "var(--accent)" : "#ece0c8",
-            color: canProceed ? "#2a2218" : "#bcae97",
-            cursor: canProceed ? "pointer" : "not-allowed",
+            background: canProceed && !busy ? "var(--accent)" : "#ece0c8",
+            color: canProceed && !busy ? "#2a2218" : "#bcae97",
+            cursor: canProceed && !busy ? "pointer" : "not-allowed",
           }}
           onClick={onNext}
         >
-          {step < 2 ? "Continue →" : "Start research →"}
+          {ctaBusy}
         </button>
       </div>
     </div></div>
@@ -515,36 +563,27 @@ function Onboarding(props: {
 }
 
 /* ---------- Researching ---------- */
-function Researching({ project, onPreview }: { project: ProjectSummary; onPreview: () => void }) {
-  const items = [
-    { label: `Reading seed URLs`, status: "done", meta: "" },
-    { label: "Discovering related pages (1 level deep)", status: "done", meta: "" },
-    { label: "Searching the web for additional sources", status: "done", meta: "" },
-    { label: "Extracting attributes per competitor", status: "active", meta: "" },
-    { label: "Scoring confidence on each value", status: "pending", meta: "" },
-    { label: "Assembling your comparison matrix", status: "pending", meta: "" },
-  ] as const;
+function Researching({ project, busy, error, onRetry }: { project: ProjectSummary; busy: boolean; error: string | null; onRetry: () => void }) {
   return (
     <div className="screen"><div className="screen-inner">
       <div className="research-title">Researching {project.name}…</div>
       <div className="research-sub">{project.competitor_count} competitors · this usually takes 1–3 minutes</div>
       <div>
-        {items.map((it, i) => {
-          const icon = it.status === "done" ? "✓" : "";
-          const iconBg = it.status === "done" ? "var(--accent)" : "transparent";
-          const iconBorder = it.status === "done" ? "none" : it.status === "active" ? "2px solid var(--accent)" : "2px solid #ecdcbd";
-          const labelColor = it.status === "pending" ? "#bcae97" : it.status === "active" ? "#2a2218" : "#3a3224";
-          const labelWeight = it.status === "active" ? 600 : 400;
-          return (
-            <div key={i} className="research-item">
-              <span className="research-icon" style={{ background: iconBg, border: iconBorder }}>{icon}</span>
-              <span className="research-label" style={{ color: labelColor, fontWeight: labelWeight }}>{it.label}</span>
-              <span className="research-meta">{it.meta}</span>
-            </div>
-          );
-        })}
+        <div className="research-item">
+          <span className="research-icon" style={{ background: busy ? "transparent" : "var(--accent)", border: busy ? "2px solid var(--accent)" : "none" }}>{busy ? "" : "✓"}</span>
+          <span className="research-label" style={{ fontWeight: 600 }}>
+            {busy ? "Calling the model — reading seed pages, searching the web, extracting attributes…" : error ? "Stopped" : "Done"}
+          </span>
+        </div>
       </div>
-      <button className="btn-primary" style={{ marginTop: 28 }} onClick={onPreview}>Preview results (demo) →</button>
+      {error && (
+        <>
+          <div className="note" style={{ marginTop: 22, background: "#fbe5dc", color: "#8a3018", border: "1px solid #f0c6b7" }}>
+            <span>⚠</span><span>{error}</span>
+          </div>
+          <button className="btn-primary" style={{ marginTop: 18 }} onClick={onRetry}>Retry extraction</button>
+        </>
+      )}
       <div className="leave-note">
         <span style={{ color: "#9a6516", fontSize: 14 }}>✦</span>
         <span>You can leave this page — we'll mark the project ready in the sidebar when the matrix is done.</span>
@@ -809,8 +848,8 @@ function AddAttrModal({
             const on = !!targets[c.id];
             return (
               <label key={c.id} className="checkbox-row" onClick={() => toggle(c.id)}>
-                <span className={"checkbox" + (on ? " checked" : "")}>{on ? "✓" : ""}</span>
-                {c.name}
+                <span className={"checkbox" + (on ? " on" : "")}>{on ? "✓" : ""}</span>
+                <span>{c.name}</span>
               </label>
             );
           })}
