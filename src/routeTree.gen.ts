@@ -10,68 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ResultsRunIdRouteImport } from './routes/results.$runId'
-import { Route as ResearchRunIdRouteImport } from './routes/research.$runId'
-import { Route as RefineRunIdRouteImport } from './routes/refine.$runId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResultsRunIdRoute = ResultsRunIdRouteImport.update({
-  id: '/results/$runId',
-  path: '/results/$runId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResearchRunIdRoute = ResearchRunIdRouteImport.update({
-  id: '/research/$runId',
-  path: '/research/$runId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RefineRunIdRoute = RefineRunIdRouteImport.update({
-  id: '/refine/$runId',
-  path: '/refine/$runId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/refine/$runId': typeof RefineRunIdRoute
-  '/research/$runId': typeof ResearchRunIdRoute
-  '/results/$runId': typeof ResultsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/refine/$runId': typeof RefineRunIdRoute
-  '/research/$runId': typeof ResearchRunIdRoute
-  '/results/$runId': typeof ResultsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/refine/$runId': typeof RefineRunIdRoute
-  '/research/$runId': typeof ResearchRunIdRoute
-  '/results/$runId': typeof ResultsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/refine/$runId' | '/research/$runId' | '/results/$runId'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/refine/$runId' | '/research/$runId' | '/results/$runId'
-  id:
-    | '__root__'
-    | '/'
-    | '/refine/$runId'
-    | '/research/$runId'
-    | '/results/$runId'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  RefineRunIdRoute: typeof RefineRunIdRoute
-  ResearchRunIdRoute: typeof ResearchRunIdRoute
-  ResultsRunIdRoute: typeof ResultsRunIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -83,35 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/results/$runId': {
-      id: '/results/$runId'
-      path: '/results/$runId'
-      fullPath: '/results/$runId'
-      preLoaderRoute: typeof ResultsRunIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/research/$runId': {
-      id: '/research/$runId'
-      path: '/research/$runId'
-      fullPath: '/research/$runId'
-      preLoaderRoute: typeof ResearchRunIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/refine/$runId': {
-      id: '/refine/$runId'
-      path: '/refine/$runId'
-      fullPath: '/refine/$runId'
-      preLoaderRoute: typeof RefineRunIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  RefineRunIdRoute: RefineRunIdRoute,
-  ResearchRunIdRoute: ResearchRunIdRoute,
-  ResultsRunIdRoute: ResultsRunIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
