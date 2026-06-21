@@ -14,7 +14,219 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attributes: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_custom: boolean
+          label: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_custom?: boolean
+          label: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_custom?: boolean
+          label?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitors: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitors_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extracted_value_sources: {
+        Row: {
+          extracted_value_id: string
+          id: string
+          source_id: string
+        }
+        Insert: {
+          extracted_value_id: string
+          id?: string
+          source_id: string
+        }
+        Update: {
+          extracted_value_id?: string
+          id?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extracted_value_sources_extracted_value_id_fkey"
+            columns: ["extracted_value_id"]
+            isOneToOne: false
+            referencedRelation: "extracted_values"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extracted_value_sources_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extracted_values: {
+        Row: {
+          attribute_id: string
+          competitor_id: string
+          confidence: string
+          extracted_at: string
+          id: string
+          value: string
+        }
+        Insert: {
+          attribute_id: string
+          competitor_id: string
+          confidence: string
+          extracted_at?: string
+          id?: string
+          value: string
+        }
+        Update: {
+          attribute_id?: string
+          competitor_id?: string
+          confidence?: string
+          extracted_at?: string
+          id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extracted_values_attribute_id_fkey"
+            columns: ["attribute_id"]
+            isOneToOne: false
+            referencedRelation: "attributes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extracted_values_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          crawl_depth: string
+          created_at: string
+          feature_description: string | null
+          id: string
+          last_run_at: string | null
+          name: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          crawl_depth?: string
+          created_at?: string
+          feature_description?: string | null
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          crawl_depth?: string
+          created_at?: string
+          feature_description?: string | null
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      sources: {
+        Row: {
+          competitor_id: string
+          created_at: string
+          fetched_content: string | null
+          id: string
+          source_type: string
+          url: string
+        }
+        Insert: {
+          competitor_id: string
+          created_at?: string
+          fetched_content?: string | null
+          id?: string
+          source_type: string
+          url: string
+        }
+        Update: {
+          competitor_id?: string
+          created_at?: string
+          fetched_content?: string | null
+          id?: string
+          source_type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sources_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
