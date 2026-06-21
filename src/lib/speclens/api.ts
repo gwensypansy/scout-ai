@@ -108,69 +108,63 @@ export async function loadProjectData(projectId: string): Promise<ProjectData | 
   };
 }
 
-export type OnboardingPayload = {
-  featureArea: string;
-  featureDescription: string;
-  competitors: { name: string; urls: string }[];
-  attrs: { label: string; description: string | null; is_custom: boolean }[];
-};
-
-// Complete onboarding: update project, insert competitors + seed sources + attributes.
-// Returns the inserted competitors so we can immediately mock-extract.
-export async function completeOnboarding(projectId: string, payload: OnboardingPayload) {
+// Step 1 of split onboarding: save project metadata + competitors + seed sources.
+export async function saveCompetitorsAndSeeds(
+  projectId: string,
+  featureArea: string,
+  featureDescription: string,
+  competitors: { name: string; urls: string }[],
+) {
   const { error: pErr } = await supabase
     .from("projects")
     .update({
-      name: payload.featureArea || "Untitled project",
-      feature_description: payload.featureDescription || null,
-      status: "running",
-      last_run_at: new Date().toISOString(),
+      name: featureArea || "Untitled project",
+      feature_description: featureDescription || null,
     })
     .eq("id", projectId);
   if (pErr) throw pErr;
 
-  const compRows = payload.competitors
-    .filter((c) => c.name.trim())
-    .map((c) => ({ project_id: projectId, name: c.name.trim() }));
-  let insertedCompetitors: Competitor[] = [];
-  if (compRows.length) {
-    const { data, error } = await supabase.from("competitors").insert(compRows).select();
-    if (error) throw error;
-    insertedCompetitors = data as Competitor[];
+  // Idempotent re-run: clear prior competitors + their sources.
+  const { data: existing } = await supabase.from("competitors").select("id").eq("project_id", projectId);
+  const existingIds = (existing ?? []).map((c) => c.id);
+  if (existingIds.length) {
+    await supabase.from("sources").delete().in("competitor_id", existingIds);
+    await supabase.from("competitors").delete().in("id", existingIds);
   }
 
-  // Seed URLs per competitor — split on whitespace/newlines/commas
+  const compRows = competitors.filter((c) => c.name.trim()).map((c) => ({ project_id: projectId, name: c.name.trim() }));
+  if (!compRows.length) return { competitors: [] as Competitor[] };
+  const { data: inserted, error } = await supabase.from("competitors").insert(compRows).select();
+  if (error) throw error;
+
   const seedRows: { competitor_id: string; url: string; source_type: SourceType }[] = [];
-  insertedCompetitors.forEach((comp, i) => {
-    const raw = payload.competitors[i]?.urls ?? "";
-    raw
+  (inserted as Competitor[]).forEach((comp, i) => {
+    (competitors[i]?.urls ?? "")
       .split(/[\s,]+/)
       .map((u) => u.trim())
       .filter(Boolean)
       .forEach((url) => seedRows.push({ competitor_id: comp.id, url, source_type: "seed" }));
   });
-  let insertedSources: Source[] = [];
-  if (seedRows.length) {
-    const { data, error } = await supabase.from("sources").insert(seedRows).select();
-    if (error) throw error;
-    insertedSources = data as Source[];
-  }
+  if (seedRows.length) await supabase.from("sources").insert(seedRows);
+  return { competitors: inserted as Competitor[] };
+}
 
-  const attrRows = payload.attrs.map((a, i) => ({
+// Step 2 of split onboarding: persist the user-confirmed attribute list.
+export async function saveConfirmedAttributes(
+  projectId: string,
+  attrs: { label: string; description: string | null; is_custom: boolean }[],
+) {
+  await supabase.from("attributes").delete().eq("project_id", projectId);
+  if (!attrs.length) return;
+  const rows = attrs.map((a, i) => ({
     project_id: projectId,
     label: a.label,
     description: a.description,
     is_custom: a.is_custom,
     display_order: i,
   }));
-  let insertedAttrs: Attribute[] = [];
-  if (attrRows.length) {
-    const { data, error } = await supabase.from("attributes").insert(attrRows).select();
-    if (error) throw error;
-    insertedAttrs = data as Attribute[];
-  }
-
-  return { competitors: insertedCompetitors, sources: insertedSources, attributes: insertedAttrs };
+  const { error } = await supabase.from("attributes").insert(rows);
+  if (error) throw error;
 }
 
 // Mock extraction — writes a placeholder extracted_values row for every (attribute, competitor),
