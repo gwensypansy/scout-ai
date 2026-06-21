@@ -56,18 +56,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          key_insight: string | null
           name: string
           project_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          key_insight?: string | null
           name: string
           project_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          key_insight?: string | null
           name?: string
           project_id?: string
         }
@@ -162,7 +165,10 @@ export type Database = {
           created_at: string
           feature_description: string | null
           id: string
+          last_error: string | null
           last_run_at: string | null
+          last_stage1_raw: string | null
+          last_stage2_raw: string | null
           name: string
           status: string
           updated_at: string
@@ -173,7 +179,10 @@ export type Database = {
           created_at?: string
           feature_description?: string | null
           id?: string
+          last_error?: string | null
           last_run_at?: string | null
+          last_stage1_raw?: string | null
+          last_stage2_raw?: string | null
           name?: string
           status?: string
           updated_at?: string
@@ -184,7 +193,10 @@ export type Database = {
           created_at?: string
           feature_description?: string | null
           id?: string
+          last_error?: string | null
           last_run_at?: string | null
+          last_stage1_raw?: string | null
+          last_stage2_raw?: string | null
           name?: string
           status?: string
           updated_at?: string
