@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/speclens.css";
 import {
   addAttributeWithValues,
+  addCompetitorWithSources,
   addSource,
   createProject,
   getExtractedValue,
@@ -19,6 +20,7 @@ import {
   type SourceType,
 } from "@/lib/speclens/api";
 import { runStage1, runStage2 } from "@/lib/speclens/research.functions";
+
 
 export const Route = createFileRoute("/")({
   ssr: false,
