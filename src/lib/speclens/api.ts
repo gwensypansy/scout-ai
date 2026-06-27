@@ -267,6 +267,19 @@ export async function getExtractedValue(attributeId: string, competitorId: strin
   return (data as ExtractedValue) ?? null;
 }
 
+export async function deleteCompetitor(competitorId: string) {
+  const { data: srcs } = await supabase.from("sources").select("id").eq("competitor_id", competitorId);
+  const srcIds = (srcs ?? []).map((s) => s.id);
+  const { data: evs } = await supabase.from("extracted_values").select("id").eq("competitor_id", competitorId);
+  const evIds = (evs ?? []).map((e) => e.id);
+  if (evIds.length) await supabase.from("extracted_value_sources").delete().in("extracted_value_id", evIds);
+  if (srcIds.length) await supabase.from("extracted_value_sources").delete().in("source_id", srcIds);
+  if (evIds.length) await supabase.from("extracted_values").delete().in("id", evIds);
+  if (srcIds.length) await supabase.from("sources").delete().in("id", srcIds);
+  const { error } = await supabase.from("competitors").delete().eq("id", competitorId);
+  if (error) throw error;
+}
+
 // Add a new competitor to an existing project: insert competitor, seed sources,
 // and a pending extracted_values row for each existing attribute (linked to seeds).
 export async function addCompetitorWithSources(projectId: string, name: string, urlsRaw: string) {
