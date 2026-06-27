@@ -958,3 +958,32 @@ function AddAttrModal({
     </div>
   );
 }
+
+/* ---------- Add Competitor Modal ---------- */
+function AddCompetitorModal({
+  name, setName, urls, setUrls, onClose, onExtract,
+}: {
+  name: string; setName: (s: string) => void;
+  urls: string; setUrls: (s: string) => void;
+  onClose: () => void; onExtract: () => void;
+}) {
+  const canExtract = !!name.trim();
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head"><div className="drawer-title">Add a competitor</div><button className="drawer-close" onClick={onClose}>×</button></div>
+        <div className="drawer-sub">Add another company to the matrix. Seed URLs help the AI extract values for your existing attributes.</div>
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Company name</label>
+        <input type="text" style={{ marginBottom: 18 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Linear" />
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Seed URLs</label>
+        <textarea style={{ minHeight: 80, marginBottom: 18 }} value={urls} onChange={(e) => setUrls(e.target.value)} placeholder="https://help.example.com/permissions" />
+        <button
+          className="btn-block"
+          style={{ background: canExtract ? "var(--accent)" : "#ece0c8", color: canExtract ? "#2a2218" : "#bcae97", cursor: canExtract ? "pointer" : "not-allowed" }}
+          disabled={!canExtract}
+          onClick={onExtract}
+        >Add competitor</button>
+      </div>
+    </div>
+  );
+}
