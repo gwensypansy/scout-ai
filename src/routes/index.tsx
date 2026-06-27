@@ -456,7 +456,18 @@ function SpecLensPage() {
           onExtract={extractAttr}
         />
       )}
+      {showAddCompetitor && (
+        <AddCompetitorModal
+          name={addCompName}
+          setName={setAddCompName}
+          urls={addCompUrls}
+          setUrls={setAddCompUrls}
+          onClose={() => setShowAddCompetitor(false)}
+          onExtract={extractCompetitor}
+        />
+      )}
     </div>
+
   );
 }
 
