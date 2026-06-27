@@ -6,6 +6,7 @@ import {
   addAttributeWithValues,
   addCompetitorWithSources,
   addSource,
+  deleteCompetitor,
   createProject,
   getExtractedValue,
   listProjects,
