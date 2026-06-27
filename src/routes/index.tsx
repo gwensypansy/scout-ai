@@ -272,6 +272,19 @@ function SpecLensPage() {
     setShowAddAttr(false);
     await refreshData(activeId);
   }
+  function openAddCompetitor() {
+    setAddCompName(""); setAddCompUrls(""); setShowAddCompetitor(true);
+  }
+  async function extractCompetitor() {
+    if (!activeId) return;
+    const name = addCompName.trim();
+    if (!name) return;
+    await addCompetitorWithSources(activeId, name, addCompUrls);
+    setShowAddCompetitor(false);
+    await refreshProjects(activeId);
+    await refreshData(activeId);
+  }
+
   async function addPanelSource(competitorId: string) {
     const url = (sourceDraft[competitorId] ?? "").trim();
     if (!url) return;
