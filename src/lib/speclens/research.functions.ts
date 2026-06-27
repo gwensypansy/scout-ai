@@ -256,10 +256,13 @@ function normSourceType(t?: string): "seed" | "crawled" | "web_search" {
 }
 
 export const runStage2 = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { projectId: string })
+  .inputValidator((d: unknown) => d as { projectId: string; competitorIds?: string[] })
   .handler(async ({ data }) => {
     const sb = admin();
-    await sb.from("projects").update({ status: "running", last_error: null, last_run_at: new Date().toISOString() }).eq("id", data.projectId);
+    const scoped = Array.isArray(data.competitorIds) && data.competitorIds.length > 0;
+    if (!scoped) {
+      await sb.from("projects").update({ status: "running", last_error: null, last_run_at: new Date().toISOString() }).eq("id", data.projectId);
+    }
 
     try {
       // Make sure the two system attributes exist for this project.
@@ -272,10 +275,18 @@ export const runStage2 = createServerFn({ method: "POST" })
       if (!haveStage) toInsert.push({ project_id: data.projectId, label: "Stage", is_custom: false, display_order: nextOrder + (haveGtm ? 0 : 1), description: "startup, growth, or enterprise" });
       if (toInsert.length) await sb.from("attributes").insert(toInsert);
 
-      const loaded = await loadAll(data.projectId);
+      const loadedFull = await loadAll(data.projectId);
+      const idFilter = scoped ? new Set(data.competitorIds) : null;
+      const loaded: LoadedProject = idFilter
+        ? { ...loadedFull, competitors: loadedFull.competitors.filter((c) => idFilter.has(c.id)) }
+        : loadedFull;
+      if (scoped && loaded.competitors.length === 0) {
+        return { raw: "", count: 0 };
+      }
       const userMessage = await buildUserMessage(loaded, true);
       const raw = await callModel(userMessage);
-      await sb.from("projects").update({ last_stage2_raw: raw }).eq("id", data.projectId);
+      if (!scoped) await sb.from("projects").update({ last_stage2_raw: raw }).eq("id", data.projectId);
+
 
       let parsed: Stage2Item[];
       try {
