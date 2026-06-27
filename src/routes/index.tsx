@@ -97,7 +97,12 @@ function SpecLensPage() {
   const [addAttrName, setAddAttrName] = useState("");
   const [addAttrTargets, setAddAttrTargets] = useState<Record<string, boolean>>({});
 
+  const [showAddCompetitor, setShowAddCompetitor] = useState(false);
+  const [addCompName, setAddCompName] = useState("");
+  const [addCompUrls, setAddCompUrls] = useState("");
+
   const [showSources, setShowSources] = useState(false);
+
   const [sourceDraft, setSourceDraft] = useState<Record<string, string>>({});
 
   async function refreshProjects(selectId?: string | null) {
