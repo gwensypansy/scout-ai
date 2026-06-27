@@ -378,11 +378,13 @@ export const runStage2 = createServerFn({ method: "POST" })
         }
       }
 
-      await sb.from("projects").update({ status: "ready", last_run_at: new Date().toISOString() }).eq("id", data.projectId);
+      if (!scoped) {
+        await sb.from("projects").update({ status: "ready", last_run_at: new Date().toISOString() }).eq("id", data.projectId);
+      }
       return { raw, count: parsed.length };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      await sb.from("projects").update({ status: "draft", last_error: msg }).eq("id", data.projectId);
+      if (!scoped) await sb.from("projects").update({ status: "draft", last_error: msg }).eq("id", data.projectId);
       throw new Error(msg);
     }
   });
