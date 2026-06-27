@@ -266,3 +266,44 @@ export async function getExtractedValue(attributeId: string, competitorId: strin
     .maybeSingle();
   return (data as ExtractedValue) ?? null;
 }
+
+// Add a new competitor to an existing project: insert competitor, seed sources,
+// and a pending extracted_values row for each existing attribute (linked to seeds).
+export async function addCompetitorWithSources(projectId: string, name: string, urlsRaw: string) {
+  const { data: comp, error } = await supabase
+    .from("competitors")
+    .insert({ project_id: projectId, name: name.trim() })
+    .select()
+    .single();
+  if (error) throw error;
+  const competitor = comp as Competitor;
+
+  const urls = urlsRaw.split(/[\s,]+/).map((u) => u.trim()).filter(Boolean);
+  let insertedSources: Source[] = [];
+  if (urls.length) {
+    const { data: srcs } = await supabase
+      .from("sources")
+      .insert(urls.map((url) => ({ competitor_id: competitor.id, url, source_type: "seed" as SourceType })))
+      .select();
+    insertedSources = (srcs ?? []) as Source[];
+  }
+
+  const { data: attrs } = await supabase.from("attributes").select("id").eq("project_id", projectId);
+  const attrIds = (attrs ?? []).map((a) => a.id);
+  if (attrIds.length) {
+    const rows = attrIds.map((aid) => ({
+      attribute_id: aid,
+      competitor_id: competitor.id,
+      value: "Pending extraction",
+      confidence: "med" as Confidence,
+    }));
+    const { data: evs } = await supabase.from("extracted_values").insert(rows).select();
+    const links: { extracted_value_id: string; source_id: string }[] = [];
+    (evs ?? []).forEach((ev) => {
+      insertedSources.forEach((s) => links.push({ extracted_value_id: (ev as ExtractedValue).id, source_id: s.id }));
+    });
+    if (links.length) await supabase.from("extracted_value_sources").insert(links);
+  }
+  return competitor;
+}
+

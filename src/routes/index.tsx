@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/speclens.css";
 import {
   addAttributeWithValues,
+  addCompetitorWithSources,
   addSource,
   createProject,
   getExtractedValue,
@@ -19,6 +20,7 @@ import {
   type SourceType,
 } from "@/lib/speclens/api";
 import { runStage1, runStage2 } from "@/lib/speclens/research.functions";
+
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -95,7 +97,12 @@ function SpecLensPage() {
   const [addAttrName, setAddAttrName] = useState("");
   const [addAttrTargets, setAddAttrTargets] = useState<Record<string, boolean>>({});
 
+  const [showAddCompetitor, setShowAddCompetitor] = useState(false);
+  const [addCompName, setAddCompName] = useState("");
+  const [addCompUrls, setAddCompUrls] = useState("");
+
   const [showSources, setShowSources] = useState(false);
+
   const [sourceDraft, setSourceDraft] = useState<Record<string, string>>({});
 
   async function refreshProjects(selectId?: string | null) {
@@ -265,6 +272,19 @@ function SpecLensPage() {
     setShowAddAttr(false);
     await refreshData(activeId);
   }
+  function openAddCompetitor() {
+    setAddCompName(""); setAddCompUrls(""); setShowAddCompetitor(true);
+  }
+  async function extractCompetitor() {
+    if (!activeId) return;
+    const name = addCompName.trim();
+    if (!name) return;
+    await addCompetitorWithSources(activeId, name, addCompUrls);
+    setShowAddCompetitor(false);
+    await refreshProjects(activeId);
+    await refreshData(activeId);
+  }
+
   async function addPanelSource(competitorId: string) {
     const url = (sourceDraft[competitorId] ?? "").trim();
     if (!url) return;
@@ -392,8 +412,9 @@ function SpecLensPage() {
             {activeProject && showRecap && data && <Recap data={data} onView={() => setTab("results")} />}
 
             {activeProject && showResults && data && (
-              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenSources={() => setShowSources(true)} />
+              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} />
             )}
+
           </div>
         </div>
       </div>
@@ -435,7 +456,18 @@ function SpecLensPage() {
           onExtract={extractAttr}
         />
       )}
+      {showAddCompetitor && (
+        <AddCompetitorModal
+          name={addCompName}
+          setName={setAddCompName}
+          urls={addCompUrls}
+          setUrls={setAddCompUrls}
+          onClose={() => setShowAddCompetitor(false)}
+          onExtract={extractCompetitor}
+        />
+      )}
     </div>
+
   );
 }
 
@@ -641,17 +673,27 @@ function Recap({ data, onView }: { data: ProjectData; onView: () => void }) {
 
 /* ---------- Results ---------- */
 function Results({
-  data, onOpenRefine, onOpenAddAttr, onOpenSources,
+  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources,
 }: {
   data: ProjectData;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
   onOpenAddAttr: () => void;
+  onOpenAddCompetitor: () => void;
   onOpenSources: () => void;
 }) {
   const totalSources = data.sources.length;
-  const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr))`;
-  const valueMap = new Map<string, { v: string; c: Confidence }>();
-  data.extractedValues.forEach((ev) => valueMap.set(ev.attribute_id + "|" + ev.competitor_id, { v: ev.value, c: ev.confidence }));
+  const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr)) 170px`;
+  const valueMap = new Map<string, { id: string; v: string; c: Confidence }>();
+  data.extractedValues.forEach((ev) =>
+    valueMap.set(ev.attribute_id + "|" + ev.competitor_id, { id: ev.id, v: ev.value, c: ev.confidence }),
+  );
+  const sourceById = new Map(data.sources.map((s) => [s.id, s]));
+  const sourcesByValueId = new Map<string, string[]>();
+  data.evSources.forEach((link) => {
+    const arr = sourcesByValueId.get(link.extracted_value_id) ?? [];
+    arr.push(link.source_id);
+    sourcesByValueId.set(link.extracted_value_id, arr);
+  });
 
   return (
     <div className="results">
@@ -664,6 +706,7 @@ function Results({
           <span className="btn-toolbar">⬇ Export CSV</span>
           <span className="btn-toolbar">⧉ Copy summary</span>
           <button className="btn-toolbar" onClick={onOpenSources}>🔗 Sources<span className="count-badge">{totalSources}</span></button>
+          <button className="btn-add-attr" onClick={onOpenAddCompetitor}>+ Add competitor</button>
           <button className="btn-add-attr" onClick={onOpenAddAttr}>+ Add attribute</button>
         </div>
       </div>
@@ -687,12 +730,25 @@ function Results({
               </div>
             );
           })}
+          <div className="mh-company" style={{ cursor: "pointer" }} onClick={onOpenAddCompetitor}>
+            <div className="mh-company-name" style={{ color: "var(--accent)" }}>+ Add competitor</div>
+            <div className="mh-sources">extend the matrix</div>
+          </div>
 
           {data.attributes.map((a) => (
-            <Row key={a.id} attrId={a.id} label={a.label} competitors={data.competitors} valueMap={valueMap} onOpenRefine={onOpenRefine} />
+            <Row
+              key={a.id}
+              attrId={a.id}
+              label={a.label}
+              competitors={data.competitors}
+              valueMap={valueMap}
+              sourcesByValueId={sourcesByValueId}
+              sourceById={sourceById}
+              onOpenRefine={onOpenRefine}
+            />
           ))}
 
-          <div className="m-addrow" onClick={onOpenAddAttr}>+ Add an attribute to compare</div>
+          <div className="m-addrow" onClick={onOpenAddAttr} style={{ gridColumn: `1 / span ${data.competitors.length + 2}` }}>+ Add an attribute to compare</div>
         </div>
       </div>
 
@@ -707,32 +763,71 @@ function Results({
   );
 }
 
+function hostnameOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+}
+
 function Row({
-  attrId, label, competitors, valueMap, onOpenRefine,
+  attrId, label, competitors, valueMap, sourcesByValueId, sourceById, onOpenRefine,
 }: {
   attrId: string; label: string;
   competitors: ProjectData["competitors"];
-  valueMap: Map<string, { v: string; c: Confidence }>;
+  valueMap: Map<string, { id: string; v: string; c: Confidence }>;
+  sourcesByValueId: Map<string, string[]>;
+  sourceById: Map<string, ProjectData["sources"][number]>;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
 }) {
   return (
     <>
       <div className="m-rowlabel">{label}</div>
       {competitors.map((co) => {
-        const cell = valueMap.get(attrId + "|" + co.id) ?? { v: "—", c: null as Confidence | null };
-        const cc = cell.c ? CONF[cell.c] : null;
+        const cell = valueMap.get(attrId + "|" + co.id);
+        const cc = cell?.c ? CONF[cell.c] : null;
+        const sourceIds = cell ? (sourcesByValueId.get(cell.id) ?? []) : [];
+        const sources = sourceIds.map((id) => sourceById.get(id)).filter(Boolean) as ProjectData["sources"];
+        const shown = sources.slice(0, 3);
+        const extra = sources.length - shown.length;
         return (
           <div key={co.id} className="m-cell">
             <span className="m-cell-inner" onClick={() => onOpenRefine(co.id, attrId)}>
-              {cell.v}
+              {cell?.v ?? "—"}
               {cc && <span className="chip" style={{ background: cc.bg, color: cc.color, marginLeft: 6 }}>{cc.label}</span>}
             </span>
+            {shown.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                {shown.map((s) => (
+                  <a
+                    key={s.id}
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={s.url}
+                    style={{
+                      fontSize: 10,
+                      color: "#6e6253",
+                      background: "#f1ead9",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      textDecoration: "none",
+                      maxWidth: 130,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >↗ {hostnameOf(s.url)}</a>
+                ))}
+                {extra > 0 && <span style={{ fontSize: 10, color: "#9a8d77", padding: "2px 4px" }}>+{extra}</span>}
+              </div>
+            )}
           </div>
         );
       })}
+      <div className="m-cell" />
     </>
   );
 }
+
 
 /* ---------- Refine Drawer ---------- */
 function RefineDrawer({
@@ -859,6 +954,35 @@ function AddAttrModal({
           })}
         </div>
         <button className="btn-block" style={{ background: "var(--accent)", color: "#2a2218" }} onClick={onExtract}>Extract this attribute</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Add Competitor Modal ---------- */
+function AddCompetitorModal({
+  name, setName, urls, setUrls, onClose, onExtract,
+}: {
+  name: string; setName: (s: string) => void;
+  urls: string; setUrls: (s: string) => void;
+  onClose: () => void; onExtract: () => void;
+}) {
+  const canExtract = !!name.trim();
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head"><div className="drawer-title">Add a competitor</div><button className="drawer-close" onClick={onClose}>×</button></div>
+        <div className="drawer-sub">Add another company to the matrix. Seed URLs help the AI extract values for your existing attributes.</div>
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Company name</label>
+        <input type="text" style={{ marginBottom: 18 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Linear" />
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Seed URLs</label>
+        <textarea style={{ minHeight: 80, marginBottom: 18 }} value={urls} onChange={(e) => setUrls(e.target.value)} placeholder="https://help.example.com/permissions" />
+        <button
+          className="btn-block"
+          style={{ background: canExtract ? "var(--accent)" : "#ece0c8", color: canExtract ? "#2a2218" : "#bcae97", cursor: canExtract ? "pointer" : "not-allowed" }}
+          disabled={!canExtract}
+          onClick={onExtract}
+        >Add competitor</button>
       </div>
     </div>
   );
