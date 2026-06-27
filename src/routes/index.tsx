@@ -673,17 +673,27 @@ function Recap({ data, onView }: { data: ProjectData; onView: () => void }) {
 
 /* ---------- Results ---------- */
 function Results({
-  data, onOpenRefine, onOpenAddAttr, onOpenSources,
+  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources,
 }: {
   data: ProjectData;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
   onOpenAddAttr: () => void;
+  onOpenAddCompetitor: () => void;
   onOpenSources: () => void;
 }) {
   const totalSources = data.sources.length;
-  const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr))`;
-  const valueMap = new Map<string, { v: string; c: Confidence }>();
-  data.extractedValues.forEach((ev) => valueMap.set(ev.attribute_id + "|" + ev.competitor_id, { v: ev.value, c: ev.confidence }));
+  const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr)) 170px`;
+  const valueMap = new Map<string, { id: string; v: string; c: Confidence }>();
+  data.extractedValues.forEach((ev) =>
+    valueMap.set(ev.attribute_id + "|" + ev.competitor_id, { id: ev.id, v: ev.value, c: ev.confidence }),
+  );
+  const sourceById = new Map(data.sources.map((s) => [s.id, s]));
+  const sourcesByValueId = new Map<string, string[]>();
+  data.evSources.forEach((link) => {
+    const arr = sourcesByValueId.get(link.extracted_value_id) ?? [];
+    arr.push(link.source_id);
+    sourcesByValueId.set(link.extracted_value_id, arr);
+  });
 
   return (
     <div className="results">
@@ -696,6 +706,7 @@ function Results({
           <span className="btn-toolbar">⬇ Export CSV</span>
           <span className="btn-toolbar">⧉ Copy summary</span>
           <button className="btn-toolbar" onClick={onOpenSources}>🔗 Sources<span className="count-badge">{totalSources}</span></button>
+          <button className="btn-add-attr" onClick={onOpenAddCompetitor}>+ Add competitor</button>
           <button className="btn-add-attr" onClick={onOpenAddAttr}>+ Add attribute</button>
         </div>
       </div>
@@ -719,12 +730,25 @@ function Results({
               </div>
             );
           })}
+          <div className="mh-company" style={{ cursor: "pointer" }} onClick={onOpenAddCompetitor}>
+            <div className="mh-company-name" style={{ color: "var(--accent)" }}>+ Add competitor</div>
+            <div className="mh-sources">extend the matrix</div>
+          </div>
 
           {data.attributes.map((a) => (
-            <Row key={a.id} attrId={a.id} label={a.label} competitors={data.competitors} valueMap={valueMap} onOpenRefine={onOpenRefine} />
+            <Row
+              key={a.id}
+              attrId={a.id}
+              label={a.label}
+              competitors={data.competitors}
+              valueMap={valueMap}
+              sourcesByValueId={sourcesByValueId}
+              sourceById={sourceById}
+              onOpenRefine={onOpenRefine}
+            />
           ))}
 
-          <div className="m-addrow" onClick={onOpenAddAttr}>+ Add an attribute to compare</div>
+          <div className="m-addrow" onClick={onOpenAddAttr} style={{ gridColumn: `1 / span ${data.competitors.length + 2}` }}>+ Add an attribute to compare</div>
         </div>
       </div>
 
@@ -739,32 +763,71 @@ function Results({
   );
 }
 
+function hostnameOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+}
+
 function Row({
-  attrId, label, competitors, valueMap, onOpenRefine,
+  attrId, label, competitors, valueMap, sourcesByValueId, sourceById, onOpenRefine,
 }: {
   attrId: string; label: string;
   competitors: ProjectData["competitors"];
-  valueMap: Map<string, { v: string; c: Confidence }>;
+  valueMap: Map<string, { id: string; v: string; c: Confidence }>;
+  sourcesByValueId: Map<string, string[]>;
+  sourceById: Map<string, ProjectData["sources"][number]>;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
 }) {
   return (
     <>
       <div className="m-rowlabel">{label}</div>
       {competitors.map((co) => {
-        const cell = valueMap.get(attrId + "|" + co.id) ?? { v: "—", c: null as Confidence | null };
-        const cc = cell.c ? CONF[cell.c] : null;
+        const cell = valueMap.get(attrId + "|" + co.id);
+        const cc = cell?.c ? CONF[cell.c] : null;
+        const sourceIds = cell ? (sourcesByValueId.get(cell.id) ?? []) : [];
+        const sources = sourceIds.map((id) => sourceById.get(id)).filter(Boolean) as ProjectData["sources"];
+        const shown = sources.slice(0, 3);
+        const extra = sources.length - shown.length;
         return (
           <div key={co.id} className="m-cell">
             <span className="m-cell-inner" onClick={() => onOpenRefine(co.id, attrId)}>
-              {cell.v}
+              {cell?.v ?? "—"}
               {cc && <span className="chip" style={{ background: cc.bg, color: cc.color, marginLeft: 6 }}>{cc.label}</span>}
             </span>
+            {shown.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                {shown.map((s) => (
+                  <a
+                    key={s.id}
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={s.url}
+                    style={{
+                      fontSize: 10,
+                      color: "#6e6253",
+                      background: "#f1ead9",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      textDecoration: "none",
+                      maxWidth: 130,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >↗ {hostnameOf(s.url)}</a>
+                ))}
+                {extra > 0 && <span style={{ fontSize: 10, color: "#9a8d77", padding: "2px 4px" }}>+{extra}</span>}
+              </div>
+            )}
           </div>
         );
       })}
+      <div className="m-cell" />
     </>
   );
 }
+
 
 /* ---------- Refine Drawer ---------- */
 function RefineDrawer({
