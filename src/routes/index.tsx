@@ -109,13 +109,16 @@ function SpecLensPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const lastLoadedIdRef = useRef<string | null>(null);
   async function refreshData(id: string | null) {
     if (!id) { setData(null); return; }
     const d = await loadProjectData(id);
     setData(d);
+    const isProjectSwitch = lastLoadedIdRef.current !== id;
+    lastLoadedIdRef.current = id;
     if (d) {
       if (d.project.status === "ready") setTab((t) => (t === "researching" ? "results" : t));
-      if (d.project.status === "draft") {
+      if (d.project.status === "draft" && isProjectSwitch) {
         setStep(0);
         setFeatureArea(d.project.name === "Untitled project" ? "" : d.project.name);
         setFeatureDescription(d.project.feature_description ?? "");
