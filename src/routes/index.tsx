@@ -279,11 +279,18 @@ function SpecLensPage() {
     if (!activeId) return;
     const name = addCompName.trim();
     if (!name) return;
-    await addCompetitorWithSources(activeId, name, addCompUrls);
+    const created = await addCompetitorWithSources(activeId, name, addCompUrls);
     setShowAddCompetitor(false);
     await refreshProjects(activeId);
     await refreshData(activeId);
+    try {
+      await runStage2({ data: { projectId: activeId, competitorIds: [created.id] } });
+    } catch (e) {
+      console.error("extractCompetitor failed", e);
+    }
+    await refreshData(activeId);
   }
+
 
   async function addPanelSource(competitorId: string) {
     const url = (sourceDraft[competitorId] ?? "").trim();
