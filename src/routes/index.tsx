@@ -170,8 +170,9 @@ function SpecLensPage() {
       }));
       setAttrs(suggested);
       setStep(2);
+      // Note: intentionally NOT calling refreshData here — it would see
+      // status="draft" and reset the wizard back to step 0, wiping inputs.
       await refreshProjects(activeId);
-      await refreshData(activeId);
     } catch (e) {
       setStageError(e instanceof Error ? e.message : String(e));
     } finally {
