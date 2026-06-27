@@ -284,7 +284,7 @@ function SpecLensPage() {
     await refreshProjects(activeId);
     await refreshData(activeId);
     try {
-      await runStage2({ data: { projectId: activeId, competitorIds: [created.id] } });
+      await stage2Fn({ data: { projectId: activeId, competitorIds: [created.id] } });
     } catch (e) {
       console.error("extractCompetitor failed", e);
     }
