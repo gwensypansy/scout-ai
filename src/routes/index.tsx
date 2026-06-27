@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/speclens.css";
 import {
   addAttributeWithValues,
@@ -109,13 +109,16 @@ function SpecLensPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const lastLoadedIdRef = useRef<string | null>(null);
   async function refreshData(id: string | null) {
     if (!id) { setData(null); return; }
     const d = await loadProjectData(id);
     setData(d);
+    const isProjectSwitch = lastLoadedIdRef.current !== id;
+    lastLoadedIdRef.current = id;
     if (d) {
       if (d.project.status === "ready") setTab((t) => (t === "researching" ? "results" : t));
-      if (d.project.status === "draft") {
+      if (d.project.status === "draft" && isProjectSwitch) {
         setStep(0);
         setFeatureArea(d.project.name === "Untitled project" ? "" : d.project.name);
         setFeatureDescription(d.project.feature_description ?? "");
@@ -170,8 +173,9 @@ function SpecLensPage() {
       }));
       setAttrs(suggested);
       setStep(2);
+      // Note: intentionally NOT calling refreshData here — it would see
+      // status="draft" and reset the wizard back to step 0, wiping inputs.
       await refreshProjects(activeId);
-      await refreshData(activeId);
     } catch (e) {
       setStageError(e instanceof Error ? e.message : String(e));
     } finally {
