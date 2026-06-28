@@ -832,13 +832,14 @@ function Results({
           {data.attributes.map((a) => (
             <Row
               key={a.id}
-              attrId={a.id}
-              label={a.label}
+              attr={a}
               competitors={data.competitors}
               valueMap={valueMap}
               sourcesByValueId={sourcesByValueId}
               sourceById={sourceById}
               onOpenRefine={onOpenRefine}
+              onEditAttribute={onEditAttribute}
+              onDeleteAttribute={onDeleteAttribute}
             />
           ))}
 
