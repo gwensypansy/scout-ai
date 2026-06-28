@@ -863,18 +863,49 @@ function hostnameOf(url: string): string {
 }
 
 function Row({
-  attrId, label, competitors, valueMap, sourcesByValueId, sourceById, onOpenRefine,
+  attr, competitors, valueMap, sourcesByValueId, sourceById, onOpenRefine, onEditAttribute, onDeleteAttribute,
 }: {
-  attrId: string; label: string;
+  attr: Attribute;
   competitors: ProjectData["competitors"];
   valueMap: Map<string, { id: string; v: string; c: Confidence }>;
   sourcesByValueId: Map<string, string[]>;
   sourceById: Map<string, ProjectData["sources"][number]>;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
+  onEditAttribute: (a: Attribute) => void;
+  onDeleteAttribute: (attributeId: string, label: string) => void;
 }) {
+  const attrId = attr.id;
   return (
     <>
-      <div className="m-rowlabel">{label}</div>
+      <div className="m-rowlabel" style={{ position: "relative" }} title={attr.description ?? undefined}>
+        <div style={{ paddingRight: 38 }}>{attr.label}</div>
+        <div style={{ position: "absolute", top: 8, right: 6, display: "flex", gap: 2 }}>
+          <button
+            onClick={() => onEditAttribute(attr)}
+            title="Edit attribute (re-extracts across competitors)"
+            aria-label="Edit attribute"
+            style={{
+              width: 18, height: 18, lineHeight: "16px", textAlign: "center",
+              fontSize: 11, color: "#9a8d77", background: "transparent",
+              border: "none", borderRadius: 4, cursor: "pointer", padding: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f1ead9"; e.currentTarget.style.color = "#4f4434"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9a8d77"; }}
+          >✎</button>
+          <button
+            onClick={() => onDeleteAttribute(attr.id, attr.label)}
+            title={`Delete ${attr.label}`}
+            aria-label={`Delete ${attr.label}`}
+            style={{
+              width: 18, height: 18, lineHeight: "16px", textAlign: "center",
+              fontSize: 13, color: "#9a8d77", background: "transparent",
+              border: "none", borderRadius: 4, cursor: "pointer", padding: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f1ead9"; e.currentTarget.style.color = "#a8432a"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9a8d77"; }}
+          >×</button>
+        </div>
+      </div>
       {competitors.map((co) => {
         const cell = valueMap.get(attrId + "|" + co.id);
         const cc = cell?.c ? CONF[cell.c] : null;
