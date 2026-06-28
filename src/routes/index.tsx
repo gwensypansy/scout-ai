@@ -1052,10 +1052,11 @@ function SourcesPanel({
 
 /* ---------- Add Attribute Modal ---------- */
 function AddAttrModal({
-  data, name, setName, targets, toggle, onClose, onExtract,
+  data, name, setName, description, setDescription, targets, toggle, onClose, onExtract,
 }: {
   data: ProjectData;
   name: string; setName: (s: string) => void;
+  description: string; setDescription: (s: string) => void;
   targets: Record<string, boolean>;
   toggle: (id: string) => void;
   onClose: () => void; onExtract: () => void;
@@ -1066,7 +1067,9 @@ function AddAttrModal({
         <div className="drawer-head"><div className="drawer-title">Add a dimension</div><button className="drawer-close" onClick={onClose}>×</button></div>
         <div className="drawer-sub">Extract a new attribute across some or all competitors</div>
         <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>New attribute</label>
-        <input type="text" style={{ marginBottom: 18 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Mobile permission support" />
+        <input type="text" style={{ marginBottom: 14 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Mobile permission support" />
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Description <span style={{ fontWeight: 400, color: "#9a8d77" }}>(optional)</span></label>
+        <textarea style={{ minHeight: 64, marginBottom: 18 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What should the AI focus on for this attribute? Specific behavior, scope, or edge cases." />
         <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 10 }}>Apply to</label>
         <div style={{ marginBottom: 20 }}>
           {data.competitors.map((c) => {
@@ -1080,6 +1083,36 @@ function AddAttrModal({
           })}
         </div>
         <button className="btn-block" style={{ background: "var(--accent)", color: "#2a2218" }} onClick={onExtract}>Extract this attribute</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Edit Attribute Modal ---------- */
+function EditAttrModal({
+  label, setLabel, description, setDescription, busy, onClose, onSave,
+}: {
+  label: string; setLabel: (s: string) => void;
+  description: string; setDescription: (s: string) => void;
+  busy: boolean;
+  onClose: () => void; onSave: () => void;
+}) {
+  const canSave = !!label.trim() && !busy;
+  return (
+    <div className="overlay" onClick={busy ? undefined : onClose}>
+      <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head"><div className="drawer-title">Edit attribute</div><button className="drawer-close" onClick={onClose} disabled={busy}>×</button></div>
+        <div className="drawer-sub">Saving will re-extract this attribute across every competitor in the matrix.</div>
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Attribute label</label>
+        <input type="text" style={{ marginBottom: 14 }} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Granularity" />
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Description <span style={{ fontWeight: 400, color: "#9a8d77" }}>(optional)</span></label>
+        <textarea style={{ minHeight: 80, marginBottom: 18 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What should the AI focus on? Specific behavior, scope, or edge cases." />
+        <button
+          className="btn-block"
+          style={{ background: canSave ? "var(--accent)" : "#ece0c8", color: canSave ? "#2a2218" : "#bcae97", cursor: canSave ? "pointer" : "not-allowed" }}
+          disabled={!canSave}
+          onClick={onSave}
+        >{busy ? "Re-extracting…" : "Save & re-extract"}</button>
       </div>
     </div>
   );
