@@ -651,9 +651,14 @@ function Onboarding(props: {
                 </div>
                 <textarea
                   value={a.description ?? ""}
-                  onChange={(e) => setAttrs(attrs.map((x, i) => i === idx ? { ...x, description: e.target.value || null } : x))}
+                  onChange={(e) => {
+                    const target = e.target;
+                    setAttrs(attrs.map((x, i) => i === idx ? { ...x, description: target.value || null } : x));
+                    target.style.height = "auto";
+                    target.style.height = target.scrollHeight + "px";
+                  }}
                   placeholder="Describe what the AI should focus on for this attribute (optional)"
-                  style={{ width: "100%", marginTop: 6, minHeight: 38, background: "transparent", border: "none", outline: "none", color: "#4f4434", fontSize: 12, lineHeight: 1.45, padding: 0, resize: "vertical", fontFamily: "inherit" }}
+                  style={{ width: "100%", marginTop: 6, minHeight: 38, background: "transparent", border: "none", outline: "none", color: "#4f4434", fontSize: 12, lineHeight: 1.45, padding: 0, resize: "none", fontFamily: "inherit", overflow: "hidden" }}
                 />
               </div>
             ))}
