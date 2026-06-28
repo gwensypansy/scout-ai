@@ -100,7 +100,13 @@ function SpecLensPage() {
 
   const [showAddAttr, setShowAddAttr] = useState(false);
   const [addAttrName, setAddAttrName] = useState("");
+  const [addAttrDesc, setAddAttrDesc] = useState("");
   const [addAttrTargets, setAddAttrTargets] = useState<Record<string, boolean>>({});
+
+  const [editAttr, setEditAttr] = useState<Attribute | null>(null);
+  const [editAttrLabel, setEditAttrLabel] = useState("");
+  const [editAttrDesc, setEditAttrDesc] = useState("");
+  const [editAttrBusy, setEditAttrBusy] = useState(false);
 
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [addCompName, setAddCompName] = useState("");
