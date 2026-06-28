@@ -689,13 +689,14 @@ function Recap({ data, onView }: { data: ProjectData; onView: () => void }) {
 
 /* ---------- Results ---------- */
 function Results({
-  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources,
+  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources, onDeleteCompetitor,
 }: {
   data: ProjectData;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
   onOpenAddAttr: () => void;
   onOpenAddCompetitor: () => void;
   onOpenSources: () => void;
+  onDeleteCompetitor: (competitorId: string, name: string) => void;
 }) {
   const totalSources = data.sources.length;
   const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr)) 170px`;
