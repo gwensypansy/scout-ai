@@ -231,10 +231,11 @@ export async function addAttributeWithValues(
   label: string,
   competitorIds: string[],
   nextOrder: number,
+  description: string | null = null,
 ) {
   const { data: attr, error } = await supabase
     .from("attributes")
-    .insert({ project_id: projectId, label, is_custom: true, display_order: nextOrder })
+    .insert({ project_id: projectId, label, description, is_custom: true, display_order: nextOrder })
     .select()
     .single();
   if (error) throw error;
@@ -247,6 +248,7 @@ export async function addAttributeWithValues(
     }));
     await supabase.from("extracted_values").insert(rows);
   }
+  return attr as Attribute;
 }
 
 // link the current cell's extracted_value to every existing source for the competitor (used by re-extract)
@@ -278,6 +280,31 @@ export async function deleteCompetitor(competitorId: string) {
   if (srcIds.length) await supabase.from("sources").delete().in("id", srcIds);
   const { error } = await supabase.from("competitors").delete().eq("id", competitorId);
   if (error) throw error;
+}
+
+export async function deleteAttribute(attributeId: string) {
+  const { data: evs } = await supabase.from("extracted_values").select("id").eq("attribute_id", attributeId);
+  const evIds = (evs ?? []).map((e) => e.id);
+  if (evIds.length) await supabase.from("extracted_value_sources").delete().in("extracted_value_id", evIds);
+  if (evIds.length) await supabase.from("extracted_values").delete().in("id", evIds);
+  const { error } = await supabase.from("attributes").delete().eq("id", attributeId);
+  if (error) throw error;
+}
+
+export async function updateAttribute(attributeId: string, label: string, description: string | null) {
+  const { error } = await supabase
+    .from("attributes")
+    .update({ label, description })
+    .eq("id", attributeId);
+  if (error) throw error;
+}
+
+// Mark all extracted values for an attribute as pending so the UI reflects the re-extract in progress.
+export async function markAttributePending(attributeId: string) {
+  await supabase
+    .from("extracted_values")
+    .update({ value: "Pending extraction", confidence: "med" })
+    .eq("attribute_id", attributeId);
 }
 
 // Add a new competitor to an existing project: insert competitor, seed sources,

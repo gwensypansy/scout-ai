@@ -6,15 +6,19 @@ import {
   addAttributeWithValues,
   addCompetitorWithSources,
   addSource,
+  deleteAttribute,
   deleteCompetitor,
   createProject,
   getExtractedValue,
   listProjects,
   loadProjectData,
+  markAttributePending,
   relinkCellSources,
   saveCellValue,
   saveCompetitorsAndSeeds,
   saveConfirmedAttributes,
+  updateAttribute,
+  type Attribute,
   type Confidence,
   type ProjectData,
   type ProjectSummary,
@@ -96,7 +100,13 @@ function SpecLensPage() {
 
   const [showAddAttr, setShowAddAttr] = useState(false);
   const [addAttrName, setAddAttrName] = useState("");
+  const [addAttrDesc, setAddAttrDesc] = useState("");
   const [addAttrTargets, setAddAttrTargets] = useState<Record<string, boolean>>({});
+
+  const [editAttr, setEditAttr] = useState<Attribute | null>(null);
+  const [editAttrLabel, setEditAttrLabel] = useState("");
+  const [editAttrDesc, setEditAttrDesc] = useState("");
+  const [editAttrBusy, setEditAttrBusy] = useState(false);
 
   const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [addCompName, setAddCompName] = useState("");
@@ -262,15 +272,54 @@ function SpecLensPage() {
   function openAddAttr() {
     const t: Record<string, boolean> = {};
     (data?.competitors ?? []).forEach((c) => { t[c.id] = true; });
-    setAddAttrTargets(t); setAddAttrName(""); setShowAddAttr(true);
+    setAddAttrTargets(t); setAddAttrName(""); setAddAttrDesc(""); setShowAddAttr(true);
   }
   async function extractAttr() {
     if (!activeId || !data) return;
     const name = addAttrName.trim() || "New attribute";
+    const desc = addAttrDesc.trim() || null;
     const targets = Object.entries(addAttrTargets).filter(([, v]) => v).map(([k]) => k);
     const nextOrder = (data.attributes.reduce((m, a) => Math.max(m, a.display_order), -1)) + 1;
-    await addAttributeWithValues(activeId, name, targets, nextOrder);
+    const created = await addAttributeWithValues(activeId, name, targets, nextOrder, desc);
     setShowAddAttr(false);
+    await refreshData(activeId);
+    try {
+      await stage2Fn({ data: { projectId: activeId, attributeIds: [created.id] } });
+    } catch (e) {
+      console.error("extractAttr failed", e);
+    }
+    await refreshData(activeId);
+  }
+
+  function openEditAttr(a: Attribute) {
+    setEditAttr(a);
+    setEditAttrLabel(a.label);
+    setEditAttrDesc(a.description ?? "");
+  }
+  async function saveEditAttr() {
+    if (!activeId || !editAttr) return;
+    setEditAttrBusy(true);
+    try {
+      const newLabel = editAttrLabel.trim() || editAttr.label;
+      const newDesc = editAttrDesc.trim() || null;
+      await updateAttribute(editAttr.id, newLabel, newDesc);
+      await markAttributePending(editAttr.id);
+      setEditAttr(null);
+      await refreshData(activeId);
+      try {
+        await stage2Fn({ data: { projectId: activeId, attributeIds: [editAttr.id] } });
+      } catch (e) {
+        console.error("re-extract attribute failed", e);
+      }
+      await refreshData(activeId);
+    } finally {
+      setEditAttrBusy(false);
+    }
+  }
+  async function handleDeleteAttribute(attributeId: string, label: string) {
+    if (!activeId) return;
+    if (!window.confirm(`Delete attribute "${label}"? This removes its extracted values across all competitors.`)) return;
+    await deleteAttribute(attributeId);
     await refreshData(activeId);
   }
   function openAddCompetitor() {
@@ -428,7 +477,7 @@ function SpecLensPage() {
             {activeProject && showRecap && data && <Recap data={data} onView={() => setTab("results")} />}
 
             {activeProject && showResults && data && (
-              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} onDeleteCompetitor={handleDeleteCompetitor} />
+              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} onDeleteCompetitor={handleDeleteCompetitor} onEditAttribute={openEditAttr} onDeleteAttribute={handleDeleteAttribute} />
             )}
 
           </div>
@@ -466,10 +515,23 @@ function SpecLensPage() {
           data={data}
           name={addAttrName}
           setName={setAddAttrName}
+          description={addAttrDesc}
+          setDescription={setAddAttrDesc}
           targets={addAttrTargets}
           toggle={(id) => setAddAttrTargets((t) => ({ ...t, [id]: !t[id] }))}
           onClose={() => setShowAddAttr(false)}
           onExtract={extractAttr}
+        />
+      )}
+      {editAttr && (
+        <EditAttrModal
+          label={editAttrLabel}
+          setLabel={setEditAttrLabel}
+          description={editAttrDesc}
+          setDescription={setEditAttrDesc}
+          busy={editAttrBusy}
+          onClose={() => setEditAttr(null)}
+          onSave={saveEditAttr}
         />
       )}
       {showAddCompetitor && (
@@ -515,7 +577,7 @@ function Onboarding(props: {
   function updateCompetitor(i: number, patch: Partial<{ name: string; urls: string }>) {
     setCompetitors(competitors.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   }
-  function removeAttr(label: string) { setAttrs(attrs.filter((a) => a.label !== label)); }
+  // (per-attribute removal now lives inline in step 2 cards)
   function addAttr() {
     const v = newAttr.trim();
     if (v && !attrs.some((a) => a.label.toLowerCase() === v.toLowerCase())) {
@@ -568,14 +630,32 @@ function Onboarding(props: {
         <div className="field">
           <label>Attributes to extract</label>
           <div className="note" style={{ marginBottom: 14 }}>
-            <span>✦</span><span>Suggested by AI based on your seed sources. Hover a chip for what it means.</span>
+            <span>✦</span><span>Suggested by AI based on your seed sources. Add a description to steer what the AI focuses on for each attribute.</span>
           </div>
           {attrs.length === 0 && <div className="hint">No attributes yet — add at least one to continue.</div>}
-          <div className="pills">
-            {attrs.map((a) => (
-              <span key={a.label} className="pill" title={a.description ?? "Custom attribute"}>
-                {a.label}<span className="x" onClick={() => removeAttr(a.label)}>×</span>
-              </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+            {attrs.map((a, idx) => (
+              <div key={idx} style={{ border: "1px solid #e5dcc8", borderRadius: 8, padding: "10px 12px", background: "#fbf6ea" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="text"
+                    value={a.label}
+                    onChange={(e) => setAttrs(attrs.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                    style={{ flex: 1, fontWeight: 600, background: "transparent", border: "none", outline: "none", color: "#2a2218", fontSize: 14, padding: 0 }}
+                  />
+                  <button
+                    onClick={() => setAttrs(attrs.filter((_, i) => i !== idx))}
+                    title="Remove attribute"
+                    style={{ background: "transparent", border: "none", color: "#9a8d77", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 2 }}
+                  >×</button>
+                </div>
+                <textarea
+                  value={a.description ?? ""}
+                  onChange={(e) => setAttrs(attrs.map((x, i) => i === idx ? { ...x, description: e.target.value || null } : x))}
+                  placeholder="Describe what the AI should focus on for this attribute (optional)"
+                  style={{ width: "100%", marginTop: 6, minHeight: 38, background: "transparent", border: "none", outline: "none", color: "#4f4434", fontSize: 12, lineHeight: 1.45, padding: 0, resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
             ))}
           </div>
           <div className="add-row">
@@ -689,7 +769,7 @@ function Recap({ data, onView }: { data: ProjectData; onView: () => void }) {
 
 /* ---------- Results ---------- */
 function Results({
-  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources, onDeleteCompetitor,
+  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources, onDeleteCompetitor, onEditAttribute, onDeleteAttribute,
 }: {
   data: ProjectData;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
@@ -697,6 +777,8 @@ function Results({
   onOpenAddCompetitor: () => void;
   onOpenSources: () => void;
   onDeleteCompetitor: (competitorId: string, name: string) => void;
+  onEditAttribute: (a: Attribute) => void;
+  onDeleteAttribute: (attributeId: string, label: string) => void;
 }) {
   const totalSources = data.sources.length;
   const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr)) 170px`;
@@ -768,13 +850,14 @@ function Results({
           {data.attributes.map((a) => (
             <Row
               key={a.id}
-              attrId={a.id}
-              label={a.label}
+              attr={a}
               competitors={data.competitors}
               valueMap={valueMap}
               sourcesByValueId={sourcesByValueId}
               sourceById={sourceById}
               onOpenRefine={onOpenRefine}
+              onEditAttribute={onEditAttribute}
+              onDeleteAttribute={onDeleteAttribute}
             />
           ))}
 
@@ -798,18 +881,49 @@ function hostnameOf(url: string): string {
 }
 
 function Row({
-  attrId, label, competitors, valueMap, sourcesByValueId, sourceById, onOpenRefine,
+  attr, competitors, valueMap, sourcesByValueId, sourceById, onOpenRefine, onEditAttribute, onDeleteAttribute,
 }: {
-  attrId: string; label: string;
+  attr: Attribute;
   competitors: ProjectData["competitors"];
   valueMap: Map<string, { id: string; v: string; c: Confidence }>;
   sourcesByValueId: Map<string, string[]>;
   sourceById: Map<string, ProjectData["sources"][number]>;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
+  onEditAttribute: (a: Attribute) => void;
+  onDeleteAttribute: (attributeId: string, label: string) => void;
 }) {
+  const attrId = attr.id;
   return (
     <>
-      <div className="m-rowlabel">{label}</div>
+      <div className="m-rowlabel" style={{ position: "relative" }} title={attr.description ?? undefined}>
+        <div style={{ paddingRight: 38 }}>{attr.label}</div>
+        <div style={{ position: "absolute", top: 8, right: 6, display: "flex", gap: 2 }}>
+          <button
+            onClick={() => onEditAttribute(attr)}
+            title="Edit attribute (re-extracts across competitors)"
+            aria-label="Edit attribute"
+            style={{
+              width: 18, height: 18, lineHeight: "16px", textAlign: "center",
+              fontSize: 11, color: "#9a8d77", background: "transparent",
+              border: "none", borderRadius: 4, cursor: "pointer", padding: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f1ead9"; e.currentTarget.style.color = "#4f4434"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9a8d77"; }}
+          >✎</button>
+          <button
+            onClick={() => onDeleteAttribute(attr.id, attr.label)}
+            title={`Delete ${attr.label}`}
+            aria-label={`Delete ${attr.label}`}
+            style={{
+              width: 18, height: 18, lineHeight: "16px", textAlign: "center",
+              fontSize: 13, color: "#9a8d77", background: "transparent",
+              border: "none", borderRadius: 4, cursor: "pointer", padding: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f1ead9"; e.currentTarget.style.color = "#a8432a"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9a8d77"; }}
+          >×</button>
+        </div>
+      </div>
       {competitors.map((co) => {
         const cell = valueMap.get(attrId + "|" + co.id);
         const cc = cell?.c ? CONF[cell.c] : null;
@@ -956,10 +1070,11 @@ function SourcesPanel({
 
 /* ---------- Add Attribute Modal ---------- */
 function AddAttrModal({
-  data, name, setName, targets, toggle, onClose, onExtract,
+  data, name, setName, description, setDescription, targets, toggle, onClose, onExtract,
 }: {
   data: ProjectData;
   name: string; setName: (s: string) => void;
+  description: string; setDescription: (s: string) => void;
   targets: Record<string, boolean>;
   toggle: (id: string) => void;
   onClose: () => void; onExtract: () => void;
@@ -970,7 +1085,9 @@ function AddAttrModal({
         <div className="drawer-head"><div className="drawer-title">Add a dimension</div><button className="drawer-close" onClick={onClose}>×</button></div>
         <div className="drawer-sub">Extract a new attribute across some or all competitors</div>
         <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>New attribute</label>
-        <input type="text" style={{ marginBottom: 18 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Mobile permission support" />
+        <input type="text" style={{ marginBottom: 14 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Mobile permission support" />
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Description <span style={{ fontWeight: 400, color: "#9a8d77" }}>(optional)</span></label>
+        <textarea style={{ minHeight: 64, marginBottom: 18 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What should the AI focus on for this attribute? Specific behavior, scope, or edge cases." />
         <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 10 }}>Apply to</label>
         <div style={{ marginBottom: 20 }}>
           {data.competitors.map((c) => {
@@ -984,6 +1101,36 @@ function AddAttrModal({
           })}
         </div>
         <button className="btn-block" style={{ background: "var(--accent)", color: "#2a2218" }} onClick={onExtract}>Extract this attribute</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Edit Attribute Modal ---------- */
+function EditAttrModal({
+  label, setLabel, description, setDescription, busy, onClose, onSave,
+}: {
+  label: string; setLabel: (s: string) => void;
+  description: string; setDescription: (s: string) => void;
+  busy: boolean;
+  onClose: () => void; onSave: () => void;
+}) {
+  const canSave = !!label.trim() && !busy;
+  return (
+    <div className="overlay" onClick={busy ? undefined : onClose}>
+      <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head"><div className="drawer-title">Edit attribute</div><button className="drawer-close" onClick={onClose} disabled={busy}>×</button></div>
+        <div className="drawer-sub">Saving will re-extract this attribute across every competitor in the matrix.</div>
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Attribute label</label>
+        <input type="text" style={{ marginBottom: 14 }} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Granularity" />
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4f4434", marginBottom: 8 }}>Description <span style={{ fontWeight: 400, color: "#9a8d77" }}>(optional)</span></label>
+        <textarea style={{ minHeight: 80, marginBottom: 18 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What should the AI focus on? Specific behavior, scope, or edge cases." />
+        <button
+          className="btn-block"
+          style={{ background: canSave ? "var(--accent)" : "#ece0c8", color: canSave ? "#2a2218" : "#bcae97", cursor: canSave ? "pointer" : "not-allowed" }}
+          disabled={!canSave}
+          onClick={onSave}
+        >{busy ? "Re-extracting…" : "Save & re-extract"}</button>
       </div>
     </div>
   );
