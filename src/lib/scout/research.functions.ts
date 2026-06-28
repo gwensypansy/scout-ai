@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
 const SYSTEM_PROMPT = `SYSTEM PROMPT — Scout Competitive Research Assistant
@@ -89,14 +90,7 @@ RULES
 - source_urls on each product attribute should list the specific source(s) that justified that exact value, not every source used for the competitor overall.`;
 
 const MODEL = "google/gemini-2.5-pro";
-
-function admin() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-}
+type ScoutDb = SupabaseClient<Database>;
 
 function stripFences(s: string): string {
   return s.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
@@ -137,8 +131,7 @@ type LoadedProject = {
   attributes: { id: string; label: string; description: string | null; display_order: number; is_custom: boolean }[];
 };
 
-async function loadAll(projectId: string): Promise<LoadedProject> {
-  const sb = admin();
+async function loadAll(sb: ScoutDb, projectId: string): Promise<LoadedProject> {
   const { data: project, error: pErr } = await sb.from("projects").select("id,name,feature_description").eq("id", projectId).single();
   if (pErr || !project) throw new Error(pErr?.message ?? "project not found");
   const { data: competitors = [] } = await sb.from("competitors").select("id,name").eq("project_id", projectId).order("created_at");
@@ -203,12 +196,13 @@ async function callModel(userMessage: string): Promise<string> {
 
 export const runStage1 = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { projectId: string })
-  .handler(async ({ data }) => {
-    const sb = admin();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
     await sb.from("projects").update({ status: "running", last_error: null, last_run_at: new Date().toISOString() }).eq("id", data.projectId);
 
     try {
-      const loaded = await loadAll(data.projectId);
+      const loaded = await loadAll(sb, data.projectId);
       const userMessage = await buildUserMessage(loaded, false);
       const raw = await callModel(userMessage);
       await sb.from("projects").update({ last_stage1_raw: raw }).eq("id", data.projectId);
@@ -257,8 +251,9 @@ function normSourceType(t?: string): "seed" | "crawled" | "web_search" {
 
 export const runStage2 = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { projectId: string; competitorIds?: string[]; attributeIds?: string[] })
-  .handler(async ({ data }) => {
-    const sb = admin();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
     const compScoped = Array.isArray(data.competitorIds) && data.competitorIds.length > 0;
     const attrScoped = Array.isArray(data.attributeIds) && data.attributeIds.length > 0;
     const scoped = compScoped || attrScoped;
@@ -268,7 +263,7 @@ export const runStage2 = createServerFn({ method: "POST" })
 
     try {
       // Make sure the two system attributes exist for this project (skip when re-extracting a specific attribute).
-      const loaded0 = await loadAll(data.projectId);
+      const loaded0 = await loadAll(sb, data.projectId);
       if (!attrScoped) {
         const haveGtm = loaded0.attributes.some((a) => a.label.toLowerCase() === "gtm motion");
         const haveStage = loaded0.attributes.some((a) => a.label.toLowerCase() === "stage");
@@ -279,7 +274,7 @@ export const runStage2 = createServerFn({ method: "POST" })
         if (toInsert.length) await sb.from("attributes").insert(toInsert);
       }
 
-      const loadedFull = await loadAll(data.projectId);
+      const loadedFull = await loadAll(sb, data.projectId);
       const compFilter = compScoped ? new Set(data.competitorIds) : null;
       const attrFilter = attrScoped ? new Set(data.attributeIds) : null;
       const loaded: LoadedProject = {
