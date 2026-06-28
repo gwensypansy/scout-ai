@@ -79,6 +79,7 @@ function ScoutPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("setup");
   const [data, setData] = useState<ProjectData | null>(null);
+  const [appError, setAppError] = useState<string | null>(null);
 
   // wizard ephemeral state
   const [step, setStep] = useState(0);
@@ -124,9 +125,13 @@ function ScoutPage() {
   }
   useEffect(() => {
     (async () => {
-      const { ensureSession } = await import("@/lib/scout/session");
-      await ensureSession();
-      await refreshProjects();
+      try {
+        const { ensureSession } = await import("@/lib/scout/session");
+        await ensureSession();
+        await refreshProjects();
+      } catch (e) {
+        setAppError(e instanceof Error ? e.message : String(e));
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -172,12 +177,17 @@ function ScoutPage() {
   }
 
   async function handleNew() {
-    const p = await createProject();
-    setStep(0); setFeatureArea(""); setFeatureDescription("");
-    setWizCompetitors([{ name: "", urls: "" }]); setAttrs([]); setNewAttr("");
-    setStageError(null);
-    setTab("setup");
-    await refreshProjects(p.id);
+    setAppError(null);
+    try {
+      const p = await createProject();
+      setStep(0); setFeatureArea(""); setFeatureDescription("");
+      setWizCompetitors([{ name: "", urls: "" }]); setAttrs([]); setNewAttr("");
+      setStageError(null);
+      setTab("setup");
+      await refreshProjects(p.id);
+    } catch (e) {
+      setAppError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   // Step 1 → 2: persist competitors+seeds, run Stage 1, populate attribute chips.
@@ -434,6 +444,13 @@ function ScoutPage() {
           </div>
 
           <div className="content">
+            {appError && (
+              <div className="app-error">
+                <span>⚠</span>
+                <span>{appError}</span>
+              </div>
+            )}
+
             {!activeProject && (
               <div className="empty">
                 <div>

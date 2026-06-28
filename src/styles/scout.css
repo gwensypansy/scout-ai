@@ -44,6 +44,7 @@
 .scout-root .tab-count { font-size: 10px; background: #f0dcb4; color: #9a6516; padding: 1px 6px; border-radius: 10px; font-weight: 700; }
 
 .scout-root .content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.scout-root .app-error { margin: 16px 28px 0; padding: 11px 13px; border: 1px solid #f0c6b7; border-radius: 12px; background: #fbe5dc; color: #8a3018; font-size: 12px; line-height: 1.45; display: flex; gap: 8px; align-items: flex-start; }
 .scout-root .screen { flex: 1; overflow-y: auto; }
 .scout-root .screen-inner { max-width: 600px; margin: 0 auto; padding: 44px 24px 80px; width: 100%; }
 
