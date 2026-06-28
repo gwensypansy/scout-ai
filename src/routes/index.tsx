@@ -272,15 +272,54 @@ function SpecLensPage() {
   function openAddAttr() {
     const t: Record<string, boolean> = {};
     (data?.competitors ?? []).forEach((c) => { t[c.id] = true; });
-    setAddAttrTargets(t); setAddAttrName(""); setShowAddAttr(true);
+    setAddAttrTargets(t); setAddAttrName(""); setAddAttrDesc(""); setShowAddAttr(true);
   }
   async function extractAttr() {
     if (!activeId || !data) return;
     const name = addAttrName.trim() || "New attribute";
+    const desc = addAttrDesc.trim() || null;
     const targets = Object.entries(addAttrTargets).filter(([, v]) => v).map(([k]) => k);
     const nextOrder = (data.attributes.reduce((m, a) => Math.max(m, a.display_order), -1)) + 1;
-    await addAttributeWithValues(activeId, name, targets, nextOrder);
+    const created = await addAttributeWithValues(activeId, name, targets, nextOrder, desc);
     setShowAddAttr(false);
+    await refreshData(activeId);
+    try {
+      await stage2Fn({ data: { projectId: activeId, attributeIds: [created.id] } });
+    } catch (e) {
+      console.error("extractAttr failed", e);
+    }
+    await refreshData(activeId);
+  }
+
+  function openEditAttr(a: Attribute) {
+    setEditAttr(a);
+    setEditAttrLabel(a.label);
+    setEditAttrDesc(a.description ?? "");
+  }
+  async function saveEditAttr() {
+    if (!activeId || !editAttr) return;
+    setEditAttrBusy(true);
+    try {
+      const newLabel = editAttrLabel.trim() || editAttr.label;
+      const newDesc = editAttrDesc.trim() || null;
+      await updateAttribute(editAttr.id, newLabel, newDesc);
+      await markAttributePending(editAttr.id);
+      setEditAttr(null);
+      await refreshData(activeId);
+      try {
+        await stage2Fn({ data: { projectId: activeId, attributeIds: [editAttr.id] } });
+      } catch (e) {
+        console.error("re-extract attribute failed", e);
+      }
+      await refreshData(activeId);
+    } finally {
+      setEditAttrBusy(false);
+    }
+  }
+  async function handleDeleteAttribute(attributeId: string, label: string) {
+    if (!activeId) return;
+    if (!window.confirm(`Delete attribute "${label}"? This removes its extracted values across all competitors.`)) return;
+    await deleteAttribute(attributeId);
     await refreshData(activeId);
   }
   function openAddCompetitor() {
