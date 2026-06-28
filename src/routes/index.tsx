@@ -577,7 +577,7 @@ function Onboarding(props: {
   function updateCompetitor(i: number, patch: Partial<{ name: string; urls: string }>) {
     setCompetitors(competitors.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   }
-  function removeAttr(label: string) { setAttrs(attrs.filter((a) => a.label !== label)); }
+  // (per-attribute removal now lives inline in step 2 cards)
   function addAttr() {
     const v = newAttr.trim();
     if (v && !attrs.some((a) => a.label.toLowerCase() === v.toLowerCase())) {
