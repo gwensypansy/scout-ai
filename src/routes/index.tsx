@@ -123,7 +123,11 @@ function SpecLensPage() {
     else if (!activeId && list.length) setActiveId(list[0].id);
   }
   useEffect(() => {
-    refreshProjects();
+    (async () => {
+      const { ensureSession } = await import("@/lib/speclens/session");
+      await ensureSession();
+      await refreshProjects();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
