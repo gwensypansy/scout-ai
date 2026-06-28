@@ -292,6 +292,14 @@ function SpecLensPage() {
     await refreshData(activeId);
   }
 
+  async function handleDeleteCompetitor(competitorId: string, name: string) {
+    if (!activeId) return;
+    if (!window.confirm(`Delete ${name}? This removes its sources and extracted values.`)) return;
+    await deleteCompetitor(competitorId);
+    await refreshProjects(activeId);
+    await refreshData(activeId);
+  }
+
 
   async function addPanelSource(competitorId: string) {
     const url = (sourceDraft[competitorId] ?? "").trim();
