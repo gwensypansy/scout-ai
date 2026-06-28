@@ -280,6 +280,31 @@ export async function deleteCompetitor(competitorId: string) {
   if (error) throw error;
 }
 
+export async function deleteAttribute(attributeId: string) {
+  const { data: evs } = await supabase.from("extracted_values").select("id").eq("attribute_id", attributeId);
+  const evIds = (evs ?? []).map((e) => e.id);
+  if (evIds.length) await supabase.from("extracted_value_sources").delete().in("extracted_value_id", evIds);
+  if (evIds.length) await supabase.from("extracted_values").delete().in("id", evIds);
+  const { error } = await supabase.from("attributes").delete().eq("id", attributeId);
+  if (error) throw error;
+}
+
+export async function updateAttribute(attributeId: string, label: string, description: string | null) {
+  const { error } = await supabase
+    .from("attributes")
+    .update({ label, description })
+    .eq("id", attributeId);
+  if (error) throw error;
+}
+
+// Mark all extracted values for an attribute as pending so the UI reflects the re-extract in progress.
+export async function markAttributePending(attributeId: string) {
+  await supabase
+    .from("extracted_values")
+    .update({ value: "Pending extraction", confidence: "med" })
+    .eq("attribute_id", attributeId);
+}
+
 // Add a new competitor to an existing project: insert competitor, seed sources,
 // and a pending extracted_values row for each existing attribute (linked to seeds).
 export async function addCompetitorWithSources(projectId: string, name: string, urlsRaw: string) {
