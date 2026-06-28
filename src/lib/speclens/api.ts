@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getUserId } from "./session";
 
 export type ProjectStatus = "draft" | "running" | "ready";
 export type Confidence = "high" | "med" | "low" | "manual";
@@ -53,9 +54,10 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 }
 
 export async function createProject(): Promise<Project> {
+  const user_id = await getUserId();
   const { data, error } = await supabase
     .from("projects")
-    .insert({ name: "Untitled project", status: "draft" })
+    .insert({ name: "Untitled project", status: "draft", user_id })
     .select()
     .single();
   if (error) throw error;
