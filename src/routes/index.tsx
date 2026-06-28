@@ -630,14 +630,32 @@ function Onboarding(props: {
         <div className="field">
           <label>Attributes to extract</label>
           <div className="note" style={{ marginBottom: 14 }}>
-            <span>✦</span><span>Suggested by AI based on your seed sources. Hover a chip for what it means.</span>
+            <span>✦</span><span>Suggested by AI based on your seed sources. Add a description to steer what the AI focuses on for each attribute.</span>
           </div>
           {attrs.length === 0 && <div className="hint">No attributes yet — add at least one to continue.</div>}
-          <div className="pills">
-            {attrs.map((a) => (
-              <span key={a.label} className="pill" title={a.description ?? "Custom attribute"}>
-                {a.label}<span className="x" onClick={() => removeAttr(a.label)}>×</span>
-              </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+            {attrs.map((a, idx) => (
+              <div key={idx} style={{ border: "1px solid #e5dcc8", borderRadius: 8, padding: "10px 12px", background: "#fbf6ea" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="text"
+                    value={a.label}
+                    onChange={(e) => setAttrs(attrs.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                    style={{ flex: 1, fontWeight: 600, background: "transparent", border: "none", outline: "none", color: "#2a2218", fontSize: 14, padding: 0 }}
+                  />
+                  <button
+                    onClick={() => setAttrs(attrs.filter((_, i) => i !== idx))}
+                    title="Remove attribute"
+                    style={{ background: "transparent", border: "none", color: "#9a8d77", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 2 }}
+                  >×</button>
+                </div>
+                <textarea
+                  value={a.description ?? ""}
+                  onChange={(e) => setAttrs(attrs.map((x, i) => i === idx ? { ...x, description: e.target.value || null } : x))}
+                  placeholder="Describe what the AI should focus on for this attribute (optional)"
+                  style={{ width: "100%", marginTop: 6, minHeight: 38, background: "transparent", border: "none", outline: "none", color: "#4f4434", fontSize: 12, lineHeight: 1.45, padding: 0, resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
             ))}
           </div>
           <div className="add-row">
