@@ -751,7 +751,7 @@ function Recap({ data, onView }: { data: ProjectData; onView: () => void }) {
 
 /* ---------- Results ---------- */
 function Results({
-  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources, onDeleteCompetitor,
+  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources, onDeleteCompetitor, onEditAttribute, onDeleteAttribute,
 }: {
   data: ProjectData;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
@@ -759,6 +759,8 @@ function Results({
   onOpenAddCompetitor: () => void;
   onOpenSources: () => void;
   onDeleteCompetitor: (competitorId: string, name: string) => void;
+  onEditAttribute: (a: Attribute) => void;
+  onDeleteAttribute: (attributeId: string, label: string) => void;
 }) {
   const totalSources = data.sources.length;
   const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr)) 170px`;
