@@ -6,6 +6,7 @@ import {
   addAttributeWithValues,
   addCompetitorWithSources,
   addSource,
+  deleteCompetitor,
   createProject,
   getExtractedValue,
   listProjects,
@@ -291,6 +292,14 @@ function SpecLensPage() {
     await refreshData(activeId);
   }
 
+  async function handleDeleteCompetitor(competitorId: string, name: string) {
+    if (!activeId) return;
+    if (!window.confirm(`Delete ${name}? This removes its sources and extracted values.`)) return;
+    await deleteCompetitor(competitorId);
+    await refreshProjects(activeId);
+    await refreshData(activeId);
+  }
+
 
   async function addPanelSource(competitorId: string) {
     const url = (sourceDraft[competitorId] ?? "").trim();
@@ -419,7 +428,7 @@ function SpecLensPage() {
             {activeProject && showRecap && data && <Recap data={data} onView={() => setTab("results")} />}
 
             {activeProject && showResults && data && (
-              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} />
+              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} onDeleteCompetitor={handleDeleteCompetitor} />
             )}
 
           </div>
@@ -680,13 +689,14 @@ function Recap({ data, onView }: { data: ProjectData; onView: () => void }) {
 
 /* ---------- Results ---------- */
 function Results({
-  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources,
+  data, onOpenRefine, onOpenAddAttr, onOpenAddCompetitor, onOpenSources, onDeleteCompetitor,
 }: {
   data: ProjectData;
   onOpenRefine: (competitorId: string, attributeId: string) => void;
   onOpenAddAttr: () => void;
   onOpenAddCompetitor: () => void;
   onOpenSources: () => void;
+  onDeleteCompetitor: (competitorId: string, name: string) => void;
 }) {
   const totalSources = data.sources.length;
   const gridCols = `148px repeat(${data.competitors.length || 1}, minmax(150px, 1fr)) 170px`;
@@ -731,7 +741,20 @@ function Results({
             if (crawled) parts.push(`${crawled} crawled`);
             if (added) parts.push(`${added} added`);
             return (
-              <div key={c.id} className="mh-company">
+              <div key={c.id} className="mh-company" style={{ position: "relative" }}>
+                <button
+                  onClick={() => onDeleteCompetitor(c.id, c.name)}
+                  title={`Delete ${c.name}`}
+                  aria-label={`Delete ${c.name}`}
+                  style={{
+                    position: "absolute", top: 6, right: 6,
+                    width: 18, height: 18, lineHeight: "16px", textAlign: "center",
+                    fontSize: 13, color: "#9a8d77", background: "transparent",
+                    border: "none", borderRadius: 4, cursor: "pointer", padding: 0,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f1ead9"; e.currentTarget.style.color = "#a8432a"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9a8d77"; }}
+                >×</button>
                 <div className="mh-company-name">{c.name}</div>
                 <div className="mh-sources">{parts.join(" · ")}</div>
               </div>
