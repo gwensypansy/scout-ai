@@ -4,7 +4,7 @@ import { generateText } from "ai";
 import type { Database } from "@/integrations/supabase/types";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
-const SYSTEM_PROMPT = `SYSTEM PROMPT — SpecLens Competitive Research Assistant
+const SYSTEM_PROMPT = `SYSTEM PROMPT — Scout Competitive Research Assistant
 
 You are a competitive research assistant helping product managers analyze how competitors have built a specific feature area.
 
@@ -113,7 +113,7 @@ function tryParseJSON<T = unknown>(text: string): T {
 async function fetchSeedText(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0 (compatible; SpecLensBot/1.0)" },
+      headers: { "user-agent": "Mozilla/5.0 (compatible; ScoutBot/1.0)" },
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return `[fetch failed: HTTP ${res.status}]`;
