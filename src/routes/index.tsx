@@ -14,6 +14,7 @@ import {
   loadProjectData,
   markAttributePending,
   relinkCellSources,
+  resetProjectToDraft,
   saveCellValue,
   saveCompetitorsAndSeeds,
   saveConfirmedAttributes,
@@ -492,6 +493,13 @@ function ScoutPage() {
                 busy={stageBusy === "stage2"}
                 error={stageError}
                 onRetry={retryStage2}
+                onReset={async () => {
+                  if (!activeId) return;
+                  await resetProjectToDraft(activeId);
+                  setStageError(null);
+                  setTab("setup");
+                  await refreshProjects(activeId);
+                }}
               />
             )}
 
@@ -721,7 +729,8 @@ function Onboarding(props: {
 }
 
 /* ---------- Researching ---------- */
-function Researching({ project, busy, error, onRetry }: { project: ProjectSummary; busy: boolean; error: string | null; onRetry: () => void }) {
+function Researching({ project, busy, error, onRetry, onReset }: { project: ProjectSummary; busy: boolean; error: string | null; onRetry: () => void; onReset: () => void }) {
+  const stuck = !busy && !error;
   return (
     <div className="screen"><div className="screen-inner">
       <div className="research-title">Researching {project.name}…</div>
@@ -730,7 +739,7 @@ function Researching({ project, busy, error, onRetry }: { project: ProjectSummar
         <div className="research-item">
           <span className="research-icon" style={{ background: busy ? "transparent" : "var(--accent)", border: busy ? "2px solid var(--accent)" : "none" }}>{busy ? "" : "✓"}</span>
           <span className="research-label" style={{ fontWeight: 600 }}>
-            {busy ? "Calling the model — reading seed pages, searching the web, extracting attributes…" : error ? "Stopped" : "Done"}
+            {busy ? "Calling the model — reading seed pages, searching the web, extracting attributes…" : error ? "Stopped" : stuck ? "This run looks stuck" : "Done"}
           </span>
         </div>
       </div>
@@ -740,6 +749,14 @@ function Researching({ project, busy, error, onRetry }: { project: ProjectSummar
             <span>⚠</span><span>{error}</span>
           </div>
           <button className="btn-primary" style={{ marginTop: 18 }} onClick={onRetry}>Retry extraction</button>
+        </>
+      )}
+      {stuck && (
+        <>
+          <div className="note" style={{ marginTop: 22 }}>
+            <span>✦</span><span>The previous run was interrupted (network timeout or page closed). Reset the project to draft and try again.</span>
+          </div>
+          <button className="btn-primary" style={{ marginTop: 18 }} onClick={onReset}>Reset to draft</button>
         </>
       )}
       <div className="leave-note">
