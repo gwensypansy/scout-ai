@@ -231,10 +231,11 @@ export async function addAttributeWithValues(
   label: string,
   competitorIds: string[],
   nextOrder: number,
+  description: string | null = null,
 ) {
   const { data: attr, error } = await supabase
     .from("attributes")
-    .insert({ project_id: projectId, label, is_custom: true, display_order: nextOrder })
+    .insert({ project_id: projectId, label, description, is_custom: true, display_order: nextOrder })
     .select()
     .single();
   if (error) throw error;
@@ -247,6 +248,7 @@ export async function addAttributeWithValues(
     }));
     await supabase.from("extracted_values").insert(rows);
   }
+  return attr as Attribute;
 }
 
 // link the current cell's extracted_value to every existing source for the competitor (used by re-extract)
