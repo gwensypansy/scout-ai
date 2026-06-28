@@ -741,7 +741,20 @@ function Results({
             if (crawled) parts.push(`${crawled} crawled`);
             if (added) parts.push(`${added} added`);
             return (
-              <div key={c.id} className="mh-company">
+              <div key={c.id} className="mh-company" style={{ position: "relative" }}>
+                <button
+                  onClick={() => onDeleteCompetitor(c.id, c.name)}
+                  title={`Delete ${c.name}`}
+                  aria-label={`Delete ${c.name}`}
+                  style={{
+                    position: "absolute", top: 6, right: 6,
+                    width: 18, height: 18, lineHeight: "16px", textAlign: "center",
+                    fontSize: 13, color: "#9a8d77", background: "transparent",
+                    border: "none", borderRadius: 4, cursor: "pointer", padding: 0,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f1ead9"; e.currentTarget.style.color = "#a8432a"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9a8d77"; }}
+                >×</button>
                 <div className="mh-company-name">{c.name}</div>
                 <div className="mh-sources">{parts.join(" · ")}</div>
               </div>
