@@ -256,31 +256,41 @@ function normSourceType(t?: string): "seed" | "crawled" | "web_search" {
 }
 
 export const runStage2 = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as { projectId: string; competitorIds?: string[] })
+  .inputValidator((d: unknown) => d as { projectId: string; competitorIds?: string[]; attributeIds?: string[] })
   .handler(async ({ data }) => {
     const sb = admin();
-    const scoped = Array.isArray(data.competitorIds) && data.competitorIds.length > 0;
+    const compScoped = Array.isArray(data.competitorIds) && data.competitorIds.length > 0;
+    const attrScoped = Array.isArray(data.attributeIds) && data.attributeIds.length > 0;
+    const scoped = compScoped || attrScoped;
     if (!scoped) {
       await sb.from("projects").update({ status: "running", last_error: null, last_run_at: new Date().toISOString() }).eq("id", data.projectId);
     }
 
     try {
-      // Make sure the two system attributes exist for this project.
+      // Make sure the two system attributes exist for this project (skip when re-extracting a specific attribute).
       const loaded0 = await loadAll(data.projectId);
-      const haveGtm = loaded0.attributes.some((a) => a.label.toLowerCase() === "gtm motion");
-      const haveStage = loaded0.attributes.some((a) => a.label.toLowerCase() === "stage");
-      const nextOrder = (loaded0.attributes.reduce((m, a) => Math.max(m, a.display_order), -1)) + 1;
-      const toInsert: { project_id: string; label: string; is_custom: boolean; display_order: number; description: string }[] = [];
-      if (!haveGtm) toInsert.push({ project_id: data.projectId, label: "GTM motion", is_custom: false, display_order: nextOrder, description: "sales-led, PLG, or hybrid" });
-      if (!haveStage) toInsert.push({ project_id: data.projectId, label: "Stage", is_custom: false, display_order: nextOrder + (haveGtm ? 0 : 1), description: "startup, growth, or enterprise" });
-      if (toInsert.length) await sb.from("attributes").insert(toInsert);
+      if (!attrScoped) {
+        const haveGtm = loaded0.attributes.some((a) => a.label.toLowerCase() === "gtm motion");
+        const haveStage = loaded0.attributes.some((a) => a.label.toLowerCase() === "stage");
+        const nextOrder = (loaded0.attributes.reduce((m, a) => Math.max(m, a.display_order), -1)) + 1;
+        const toInsert: { project_id: string; label: string; is_custom: boolean; display_order: number; description: string }[] = [];
+        if (!haveGtm) toInsert.push({ project_id: data.projectId, label: "GTM motion", is_custom: false, display_order: nextOrder, description: "sales-led, PLG, or hybrid" });
+        if (!haveStage) toInsert.push({ project_id: data.projectId, label: "Stage", is_custom: false, display_order: nextOrder + (haveGtm ? 0 : 1), description: "startup, growth, or enterprise" });
+        if (toInsert.length) await sb.from("attributes").insert(toInsert);
+      }
 
       const loadedFull = await loadAll(data.projectId);
-      const idFilter = scoped ? new Set(data.competitorIds) : null;
-      const loaded: LoadedProject = idFilter
-        ? { ...loadedFull, competitors: loadedFull.competitors.filter((c) => idFilter.has(c.id)) }
-        : loadedFull;
-      if (scoped && loaded.competitors.length === 0) {
+      const compFilter = compScoped ? new Set(data.competitorIds) : null;
+      const attrFilter = attrScoped ? new Set(data.attributeIds) : null;
+      const loaded: LoadedProject = {
+        ...loadedFull,
+        competitors: compFilter ? loadedFull.competitors.filter((c) => compFilter.has(c.id)) : loadedFull.competitors,
+        attributes: attrFilter ? loadedFull.attributes.filter((a) => attrFilter.has(a.id)) : loadedFull.attributes,
+      };
+      if (compScoped && loaded.competitors.length === 0) {
+        return { raw: "", count: 0 };
+      }
+      if (attrScoped && loaded.attributes.length === 0) {
         return { raw: "", count: 0 };
       }
       const userMessage = await buildUserMessage(loaded, true);
