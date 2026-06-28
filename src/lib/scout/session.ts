@@ -13,21 +13,26 @@ let bootstrapPromise: Promise<string> | null = null;
 export async function ensureSession(): Promise<string> {
   if (bootstrapPromise) return bootstrapPromise;
   bootstrapPromise = (async () => {
-    const { data: existing } = await supabase.auth.getSession();
-    let userId = existing.session?.user.id;
-    if (!userId) {
-      const { data, error } = await supabase.auth.signInAnonymously();
-      if (error) throw error;
-      userId = data.user?.id;
-      if (!userId) throw new Error("Anonymous sign-in returned no user");
-    }
-    // Claim legacy orphan rows (no-op for everyone after the first owner runs it).
     try {
-      await supabase.rpc("claim_orphan_projects");
-    } catch {
-      // non-fatal
+      const { data: existing } = await supabase.auth.getSession();
+      let userId = existing.session?.user.id;
+      if (!userId) {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) throw error;
+        userId = data.user?.id;
+        if (!userId) throw new Error("Anonymous sign-in returned no user");
+      }
+      // Claim legacy orphan rows (no-op for everyone after the first owner runs it).
+      try {
+        await supabase.rpc("claim_orphan_projects");
+      } catch {
+        // non-fatal
+      }
+      return userId;
+    } catch (error) {
+      bootstrapPromise = null;
+      throw error;
     }
-    return userId;
   })();
   return bootstrapPromise;
 }
