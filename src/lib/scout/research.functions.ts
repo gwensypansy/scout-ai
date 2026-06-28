@@ -89,7 +89,7 @@ RULES
 - The key_insight field should describe current confirmed behavior only — not trend or direction.
 - source_urls on each product attribute should list the specific source(s) that justified that exact value, not every source used for the competitor overall.`;
 
-const MODEL = "google/gemini-2.5-pro";
+const MODEL = "google/gemini-2.5-flash";
 type ScoutDb = SupabaseClient<Database>;
 
 function stripFences(s: string): string {

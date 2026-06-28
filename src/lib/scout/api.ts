@@ -309,6 +309,15 @@ export async function markAttributePending(attributeId: string) {
     .eq("attribute_id", attributeId);
 }
 
+// Force a stuck project back to draft so the user can re-run setup / extraction.
+export async function resetProjectToDraft(projectId: string) {
+  const { error } = await supabase
+    .from("projects")
+    .update({ status: "draft", last_error: null })
+    .eq("id", projectId);
+  if (error) throw error;
+}
+
 // Add a new competitor to an existing project: insert competitor, seed sources,
 // and a pending extracted_values row for each existing attribute (linked to seeds).
 export async function addCompetitorWithSources(projectId: string, name: string, urlsRaw: string) {
