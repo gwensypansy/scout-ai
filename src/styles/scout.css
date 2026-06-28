@@ -1,4 +1,4 @@
-/* SpecLens — ported verbatim from the prototype */
+/* Scout — ported verbatim from the prototype */
 .scout-root, .scout-root *, .scout-root *::before, .scout-root *::after { box-sizing: border-box; }
 .scout-root {
   --accent: #e0a437;
