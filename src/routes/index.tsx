@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
-import "@/styles/speclens.css";
+import "@/styles/scout.css";
 import {
   addAttributeWithValues,
   addCompetitorWithSources,
@@ -23,15 +23,15 @@ import {
   type ProjectData,
   type ProjectSummary,
   type SourceType,
-} from "@/lib/speclens/api";
-import { runStage1, runStage2 } from "@/lib/speclens/research.functions";
+} from "@/lib/scout/api";
+import { runStage1, runStage2 } from "@/lib/scout/research.functions";
 
 
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "SpecLens — competitive research for product managers" },
+      { title: "Scout — competitive research for product managers" },
       {
         name: "description",
         content:
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  component: SpecLensPage,
+  component: ScoutPage,
 });
 
 type Tab = "setup" | "researching" | "results";
@@ -71,7 +71,7 @@ function timeAgo(iso: string | null): string {
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
 
-function SpecLensPage() {
+function ScoutPage() {
   const stage1Fn = useServerFn(runStage1);
   const stage2Fn = useServerFn(runStage2);
 
@@ -124,7 +124,7 @@ function SpecLensPage() {
   }
   useEffect(() => {
     (async () => {
-      const { ensureSession } = await import("@/lib/speclens/session");
+      const { ensureSession } = await import("@/lib/scout/session");
       await ensureSession();
       await refreshProjects();
     })();
@@ -375,11 +375,11 @@ function SpecLensPage() {
   const showResults = tab === "results" && status === "ready";
 
   return (
-    <div className="speclens-root">
+    <div className="scout-root">
       <div className="app">
         <div className="sidebar">
           <div className="sidebar-header">
-            <span className="sidebar-dot" /><span className="sidebar-logo">SpecLens</span>
+            <span className="sidebar-dot" /><span className="sidebar-logo">Scout</span>
           </div>
           <div className="sidebar-newwrap">
             <button className="btn-new" onClick={handleNew}>+ New project</button>
@@ -406,7 +406,7 @@ function SpecLensPage() {
         <div className="main">
           <div className="topbar">
             <div className="topbar-left">
-              <span className="topbar-title">{activeProject?.name ?? "SpecLens"}</span>
+              <span className="topbar-title">{activeProject?.name ?? "Scout"}</span>
               {activeProject && (status === "running" || status === "ready") && (
                 <span
                   className="status-badge"
@@ -437,7 +437,7 @@ function SpecLensPage() {
             {!activeProject && (
               <div className="empty">
                 <div>
-                  <h2>Welcome to SpecLens</h2>
+                  <h2>Welcome to Scout</h2>
                   <p>Click "+ New project" in the sidebar to start your first competitive research run.</p>
                 </div>
               </div>

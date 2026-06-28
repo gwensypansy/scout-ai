@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SpecLens</title>
+<title>Scout</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -455,7 +455,7 @@ const App = {
         '<div class="project-meta">' + meta + '</div></div>';
     }).join('');
     return '<div class="sidebar">' +
-      '<div class="sidebar-header"><span class="sidebar-dot"></span><span class="sidebar-logo">SpecLens</span></div>' +
+      '<div class="sidebar-header"><span class="sidebar-dot"></span><span class="sidebar-logo">Scout</span></div>' +
       '<div class="sidebar-newwrap"><button class="btn-new" onclick="App.onNew()">+ New project</button></div>' +
       '<div class="sidebar-label">Your projects</div>' +
       '<div class="sidebar-projects">' + items + '</div>' +
@@ -471,7 +471,7 @@ const App = {
     const showBadge = ap && (status === 'running' || status === 'ready');
     const resultsClickable = status === 'ready';
     return '<div class="topbar">' +
-      '<div class="topbar-left"><span class="topbar-title">' + esc(ap ? ap.name : 'SpecLens') + '</span>' +
+      '<div class="topbar-left"><span class="topbar-title">' + esc(ap ? ap.name : 'Scout') + '</span>' +
       (showBadge ? '<span class="status-badge" style="background:' + sb.bg + ';color:' + sb.color + '">' + sb.text + '</span>' : '') + '</div>' +
       '<div class="tabs">' +
       '<div class="tab ' + (setupActive ? 'active' : '') + '" onclick="App.setTab(\'setup\')">⚙ Setup</div>' +
