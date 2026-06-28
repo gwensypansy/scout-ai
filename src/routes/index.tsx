@@ -477,7 +477,7 @@ function SpecLensPage() {
             {activeProject && showRecap && data && <Recap data={data} onView={() => setTab("results")} />}
 
             {activeProject && showResults && data && (
-              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} onDeleteCompetitor={handleDeleteCompetitor} />
+              <Results data={data} onOpenRefine={openRefine} onOpenAddAttr={openAddAttr} onOpenAddCompetitor={openAddCompetitor} onOpenSources={() => setShowSources(true)} onDeleteCompetitor={handleDeleteCompetitor} onEditAttribute={openEditAttr} onDeleteAttribute={handleDeleteAttribute} />
             )}
 
           </div>
