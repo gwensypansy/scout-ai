@@ -515,10 +515,23 @@ function SpecLensPage() {
           data={data}
           name={addAttrName}
           setName={setAddAttrName}
+          description={addAttrDesc}
+          setDescription={setAddAttrDesc}
           targets={addAttrTargets}
           toggle={(id) => setAddAttrTargets((t) => ({ ...t, [id]: !t[id] }))}
           onClose={() => setShowAddAttr(false)}
           onExtract={extractAttr}
+        />
+      )}
+      {editAttr && (
+        <EditAttrModal
+          label={editAttrLabel}
+          setLabel={setEditAttrLabel}
+          description={editAttrDesc}
+          setDescription={setEditAttrDesc}
+          busy={editAttrBusy}
+          onClose={() => setEditAttr(null)}
+          onSave={saveEditAttr}
         />
       )}
       {showAddCompetitor && (
