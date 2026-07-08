@@ -86,7 +86,10 @@ function ScoutPage() {
   const [step, setStep] = useState(0);
   const [featureArea, setFeatureArea] = useState("");
   const [featureDescription, setFeatureDescription] = useState("");
-  const [wizCompetitors, setWizCompetitors] = useState<{ name: string; urls: string }[]>([{ name: "", urls: "" }]);
+  const [wizCompetitors, setWizCompetitors] = useState<{ name: string; urls: string }[]>([
+    { name: "Figma", urls: "" },
+    { name: "Notion", urls: "" },
+  ]);
   const [attrs, setAttrs] = useState<AttrChip[]>([]);
   const [newAttr, setNewAttr] = useState("");
 
