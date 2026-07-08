@@ -185,7 +185,10 @@ function ScoutPage() {
     try {
       const p = await createProject();
       setStep(0); setFeatureArea(""); setFeatureDescription("");
-      setWizCompetitors([{ name: "", urls: "" }]); setAttrs([]); setNewAttr("");
+      setWizCompetitors([
+        { name: "Figma", urls: "" },
+        { name: "Notion", urls: "" },
+      ]); setAttrs([]); setNewAttr("");
       setStageError(null);
       setTab("setup");
       await refreshProjects(p.id);
