@@ -153,7 +153,10 @@ function ScoutPage() {
         setStep(0);
         setFeatureArea(d.project.name === "Untitled project" ? "" : d.project.name);
         setFeatureDescription(d.project.feature_description ?? "");
-        setWizCompetitors([{ name: "", urls: "" }]);
+        setWizCompetitors([
+          { name: "Figma", urls: "" },
+          { name: "Notion", urls: "" },
+        ]);
         setAttrs([]);
         setStageError(null);
       }
