@@ -189,8 +189,8 @@ function ScoutPage() {
       const p = await createProject();
       setStep(0); setFeatureArea(""); setFeatureDescription("");
       setWizCompetitors([
-        { name: "Figma", urls: "" },
-        { name: "Notion", urls: "" },
+        { name: "", urls: "" },
+        { name: "", urls: "" },
       ]); setAttrs([]); setNewAttr("");
       setStageError(null);
       setTab("setup");
