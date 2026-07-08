@@ -86,7 +86,10 @@ function ScoutPage() {
   const [step, setStep] = useState(0);
   const [featureArea, setFeatureArea] = useState("");
   const [featureDescription, setFeatureDescription] = useState("");
-  const [wizCompetitors, setWizCompetitors] = useState<{ name: string; urls: string }[]>([{ name: "", urls: "" }]);
+  const [wizCompetitors, setWizCompetitors] = useState<{ name: string; urls: string }[]>([
+    { name: "Figma", urls: "" },
+    { name: "Notion", urls: "" },
+  ]);
   const [attrs, setAttrs] = useState<AttrChip[]>([]);
   const [newAttr, setNewAttr] = useState("");
 
@@ -150,7 +153,10 @@ function ScoutPage() {
         setStep(0);
         setFeatureArea(d.project.name === "Untitled project" ? "" : d.project.name);
         setFeatureDescription(d.project.feature_description ?? "");
-        setWizCompetitors([{ name: "", urls: "" }]);
+        setWizCompetitors([
+          { name: "Figma", urls: "" },
+          { name: "Notion", urls: "" },
+        ]);
         setAttrs([]);
         setStageError(null);
       }
@@ -182,7 +188,10 @@ function ScoutPage() {
     try {
       const p = await createProject();
       setStep(0); setFeatureArea(""); setFeatureDescription("");
-      setWizCompetitors([{ name: "", urls: "" }]); setAttrs([]); setNewAttr("");
+      setWizCompetitors([
+        { name: "Figma", urls: "" },
+        { name: "Notion", urls: "" },
+      ]); setAttrs([]); setNewAttr("");
       setStageError(null);
       setTab("setup");
       await refreshProjects(p.id);
