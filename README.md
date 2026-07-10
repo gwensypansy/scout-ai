@@ -2,7 +2,7 @@
 
 **AI-powered competitive research for product managers.** Describe what you're building, add your competitors and sources, and Scout extracts structured attributes (pricing, features, positioning) into a side-by-side comparison table you can drop straight into a spec.
 
-**Live app:** https://scoutt-ai.lovable.app · **Full product spec:** INSERT SPEC
+**Live app:** https://scoutt-ai.lovable.app
 
 <img width="1917" height="982" alt="image" src="https://github.com/user-attachments/assets/95bb3eef-0f68-4bd4-8c60-18c205cb68fc" />
 
@@ -55,7 +55,6 @@ A few choices that shaped the build, and the reasoning behind them:
 2. **Structured competitive briefs** — a PM declares "I'm designing a commenting system" and gets a cited, sectioned brief: approach taxonomy, permission models, UX patterns, known user complaints
 3. **Cross-industry inspiration** — surfacing analogous patterns from adjacent industries (how Dropbox handles permission inheritance as inspiration for a construction SaaS files tab)
 
-The full reasoning, personas, metrics targets, and open questions are in the <INSERT PRD>.
 
 ---
 
