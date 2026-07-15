@@ -32,5 +32,4 @@ dist-ssr
 *.sw?
 
 # Environment
-.env
 .env.local
