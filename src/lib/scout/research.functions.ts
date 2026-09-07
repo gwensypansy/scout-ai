@@ -220,12 +220,15 @@ async function loadAll(sb: ScoutDb, projectId: string): Promise<LoadedProject> {
   return { project, competitors: competitors ?? [], sources: sources ?? [], attributes: attributes ?? [] };
 }
 
-async function buildUserMessage(loaded: LoadedProject, includeAttrs: boolean): Promise<string> {
+async function buildUserMessage(sb: ScoutDb, loaded: LoadedProject, includeAttrs: boolean): Promise<string> {
   const lines: string[] = [];
+  const keywords = keywordsFor(loaded);
   lines.push(`Feature area: ${loaded.project.name}`);
   if (loaded.project.feature_description) lines.push(`Description: ${loaded.project.feature_description}`);
   lines.push("");
-  lines.push("Competitors and seed URLs (with excerpted text we already fetched server-side from the seed pages):");
+  lines.push(
+    "Below is page text Scout already fetched server-side: each competitor's seed pages plus additional same-domain pages Scout crawled from links on those seed pages. Treat this fetched text as your primary evidence — you do not need to (and cannot) fetch these URLs yourself. Use every page listed, not just the seed pages.",
+  );
 
   for (const comp of loaded.competitors) {
     const seeds = loaded.sources.filter((s) => s.competitor_id === comp.id && s.source_type === "seed");
@@ -235,12 +238,23 @@ async function buildUserMessage(loaded: LoadedProject, includeAttrs: boolean): P
       lines.push("(no seed URLs provided)");
       continue;
     }
-    for (const s of seeds) {
-      const excerpt = await fetchSeedText(s.url);
-      lines.push(`- ${s.url}`);
-      lines.push(`  EXCERPT: ${excerpt}`);
+    const known = new Set(loaded.sources.filter((s) => s.competitor_id === comp.id).map((s) => s.url));
+    const crawls = await Promise.all(seeds.map((s) => crawlFromSeed(s.url, keywords)));
+    for (const { seed, children } of crawls) {
+      lines.push(`- SEED ${seed.url}`);
+      lines.push(`  TEXT: ${seed.text.slice(0, SEED_CHARS)}`);
+      for (const child of children) {
+        lines.push(`  - CRAWLED ${child.url}`);
+        lines.push(`    TEXT: ${child.text.slice(0, CRAWL_CHARS)}`);
+        if (!known.has(child.url)) {
+          known.add(child.url);
+          await sb.from("sources").insert({ competitor_id: comp.id, url: child.url, source_type: "crawled" });
+        }
+      }
+      if (!children.length) lines.push("  (no additional relevant pages found from this seed)");
     }
   }
+
 
   if (includeAttrs) {
     lines.push("");
