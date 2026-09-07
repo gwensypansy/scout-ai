@@ -294,7 +294,7 @@ export const runStage1 = createServerFn({ method: "POST" })
 
     try {
       const loaded = await loadAll(sb, data.projectId);
-      const userMessage = await buildUserMessage(loaded, false);
+      const userMessage = await buildUserMessage(sb, loaded, false);
       const raw = await callModel(userMessage);
       await sb.from("projects").update({ last_stage1_raw: raw }).eq("id", data.projectId);
 
@@ -379,7 +379,7 @@ export const runStage2 = createServerFn({ method: "POST" })
       if (attrScoped && loaded.attributes.length === 0) {
         return { raw: "", count: 0 };
       }
-      const userMessage = await buildUserMessage(loaded, true);
+      const userMessage = await buildUserMessage(sb, loaded, true);
       const raw = await callModel(userMessage);
       if (!scoped) await sb.from("projects").update({ last_stage2_raw: raw }).eq("id", data.projectId);
 
