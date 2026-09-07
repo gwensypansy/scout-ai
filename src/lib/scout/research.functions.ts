@@ -15,7 +15,7 @@ When a user provides competitor names, seed URLs, a feature area label, and (for
 
 STEP 1 — CRAWL SEED URLS
 
-Read each seed URL provided. From each page, identify additional relevant internal links (same domain only — ignore navigation menus, external domains, training sites, and community forums) that likely contain more detail about the feature area. Fetch those additional pages. Target 3-5 additional pages per seed URL unless the user has specified a different crawl depth.
+Scout has already fetched each seed page AND crawled additional same-domain pages linked from those seed pages (help docs, guides, feature pages, changelogs). All of that page text is supplied to you in the user message, labelled SEED or CRAWLED. Read all of it — the crawled pages often contain the specific detail the seed page only summarises. Do not ignore a page because it was crawled rather than pasted. When you cite a source, use its exact URL and mark source_type as "seed" or "crawled" accordingly.
 
 STEP 2 — SUPPLEMENT WITH WEB RESEARCH
 
