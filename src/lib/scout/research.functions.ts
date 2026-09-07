@@ -104,25 +104,102 @@ function tryParseJSON<T = unknown>(text: string): T {
   }
 }
 
-async function fetchSeedText(url: string): Promise<string> {
+const SEED_CHARS = 20000;
+const CRAWL_CHARS = 9000;
+const CRAWL_PER_SEED = 8;
+const UA = "Mozilla/5.0 (compatible; ScoutBot/1.0)";
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+type Page = { url: string; text: string; html: string; ok: boolean };
+
+async function fetchPage(url: string, timeoutMs = 15000): Promise<Page> {
   try {
-    const res = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0 (compatible; ScoutBot/1.0)" },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) return `[fetch failed: HTTP ${res.status}]`;
+    const res = await fetch(url, { headers: { "user-agent": UA, accept: "text/html,*/*" }, signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return { url, text: `[fetch failed: HTTP ${res.status}]`, html: "", ok: false };
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct && !/html|xml|text/i.test(ct)) return { url, text: `[skipped: ${ct}]`, html: "", ok: false };
     const html = await res.text();
-    const text = html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return text.slice(0, 6000);
+    return { url, text: htmlToText(html), html, ok: true };
   } catch (e) {
-    return `[fetch error: ${e instanceof Error ? e.message : String(e)}]`;
+    return { url, text: `[fetch error: ${e instanceof Error ? e.message : String(e)}]`, html: "", ok: false };
   }
 }
+
+const SKIP_PATTERNS = /(login|signin|sign-up|signup|pricing\/?$|careers|jobs|legal|privacy|terms|cookie|\/blog\/(tag|author|category)\/|community|forum|events|webinar|partners|contact|\.(png|jpe?g|gif|svg|pdf|zip|css|js|ico|mp4|webp)(\?|$))/i;
+
+/** Same-domain links from a page, ranked by how well they match the feature area. */
+function rankLinks(page: Page, keywords: string[], limit: number): string[] {
+  if (!page.html) return [];
+  let base: URL;
+  try {
+    base = new URL(page.url);
+  } catch {
+    return [];
+  }
+  const scored = new Map<string, number>();
+  const re = /<a\s[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(page.html))) {
+    const rawHref = m[1] ?? "";
+    const anchorText = htmlToText(m[2] ?? "").toLowerCase();
+    if (!rawHref || rawHref.startsWith("#") || /^(mailto|tel|javascript):/i.test(rawHref)) continue;
+    let abs: URL;
+    try {
+      abs = new URL(rawHref, base);
+    } catch {
+      continue;
+    }
+    if (abs.hostname.replace(/^www\./, "") !== base.hostname.replace(/^www\./, "")) continue;
+    abs.hash = "";
+    const href = abs.toString();
+    if (href === page.url) continue;
+    if (SKIP_PATTERNS.test(href)) continue;
+
+    const haystack = `${decodeURIComponent(abs.pathname).toLowerCase()} ${anchorText}`;
+    let score = 0;
+    for (const kw of keywords) if (kw.length > 2 && haystack.includes(kw)) score += 3;
+    if (/\/(docs?|help|support|guide|guides|learn|documentation|kb|article|features?|product|changelog|release|whats-new|updates)\//i.test(abs.pathname)) score += 2;
+    // Prefer pages that live near the seed page in the site hierarchy.
+    const seedDir = base.pathname.split("/").slice(0, 3).join("/");
+    if (seedDir.length > 1 && abs.pathname.startsWith(seedDir)) score += 2;
+    if (score <= 0) continue;
+    scored.set(href, Math.max(scored.get(href) ?? 0, score));
+  }
+  return [...scored.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([href]) => href);
+}
+
+function keywordsFor(loaded: LoadedProject): string[] {
+  const stop = new Set(["the", "and", "for", "with", "how", "what", "does", "this", "that", "from", "into", "their", "our", "are", "can"]);
+  const raw = `${loaded.project.name} ${loaded.project.feature_description ?? ""} ${loaded.attributes.map((a) => `${a.label} ${a.description ?? ""}`).join(" ")}`;
+  return [...new Set(raw.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stop.has(w)))].slice(0, 25);
+}
+
+/** Fetch a seed page, then fetch the most relevant same-domain pages linked from it. */
+async function crawlFromSeed(seedUrl: string, keywords: string[]): Promise<{ seed: Page; children: Page[] }> {
+  const seed = await fetchPage(seedUrl);
+  if (!seed.ok) return { seed, children: [] };
+  const links = rankLinks(seed, keywords, CRAWL_PER_SEED);
+  const children = await Promise.all(links.map((u) => fetchPage(u, 12000)));
+  return { seed, children: children.filter((c) => c.ok && c.text.length > 400) };
+}
+
 
 type LoadedProject = {
   project: { id: string; name: string; feature_description: string | null };
