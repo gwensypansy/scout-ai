@@ -27,10 +27,7 @@ Based on the feature area and what you find across sources, suggest a set of 6-1
 
 STEP 4 — EXTRACT (Stage 2 — only run once attributes have been confirmed)
 
-For each competitor, extract every confirmed attribute. Also extract the following company-level attributes using general knowledge and web research — do not attempt to extract these from product docs:
-
-- GTM motion: sales-led, PLG, or hybrid
-- Company stage: startup, growth, or enterprise
+For each competitor, extract every confirmed attribute.
 
 CONFIDENCE SCORING:
 
@@ -60,10 +57,6 @@ For Stage 2 (extraction), return a structured JSON array — one object per comp
     "sources_used": [
       { "url": "string", "source_type": "seed|crawled|web_search" }
     ],
-    "company_attributes": {
-      "gtm_motion": { "value": "string", "confidence": "high|medium|low" },
-      "stage": { "value": "string", "confidence": "high|medium|low" }
-    },
     "product_attributes": {
       "[attribute label]": {
         "value": "string",
@@ -83,7 +76,6 @@ RULES
 
 - Product attribute names in the JSON must exactly match the confirmed attribute list the user approved in Stage 1.
 - Same-domain only when crawling. Do not follow links to external domains during the crawl step.
-- Company-level attributes (GTM motion, stage) must come from web knowledge or search — never from product docs.
 - If you cannot find meaningful content for a competitor, state this explicitly in key_insight rather than producing low-confidence extractions across the board.
 - Do not include directional language ("they are moving toward X", "this signals Y") anywhere in the output.
 - The key_insight field should describe current confirmed behavior only — not trend or direction.
@@ -348,7 +340,6 @@ type Stage2Attr = { value?: string; confidence?: string; source_urls?: string[] 
 type Stage2Item = {
   company: string;
   sources_used?: Stage2Source[];
-  company_attributes?: Record<string, { value?: string; confidence?: string }>;
   product_attributes?: Record<string, Stage2Attr>;
   key_insight?: string;
 };
@@ -499,18 +490,6 @@ export const runStage2 = createServerFn({ method: "POST" })
     }
 
     try {
-      // Make sure the two system attributes exist for this project (skip when re-extracting a specific attribute).
-      const loaded0 = await loadAll(sb, data.projectId);
-      if (!attrScoped) {
-        const haveGtm = loaded0.attributes.some((a) => a.label.toLowerCase() === "gtm motion");
-        const haveStage = loaded0.attributes.some((a) => a.label.toLowerCase() === "stage");
-        const nextOrder = (loaded0.attributes.reduce((m, a) => Math.max(m, a.display_order), -1)) + 1;
-        const toInsert: { project_id: string; label: string; is_custom: boolean; display_order: number; description: string }[] = [];
-        if (!haveGtm) toInsert.push({ project_id: data.projectId, label: "GTM motion", is_custom: false, display_order: nextOrder, description: "sales-led, PLG, or hybrid" });
-        if (!haveStage) toInsert.push({ project_id: data.projectId, label: "Stage", is_custom: false, display_order: nextOrder + (haveGtm ? 0 : 1), description: "startup, growth, or enterprise" });
-        if (toInsert.length) await sb.from("attributes").insert(toInsert);
-      }
-
       const loadedFull = await loadAll(sb, data.projectId);
       const compFilter = compScoped ? new Set(data.competitorIds) : null;
       const attrFilter = attrScoped ? new Set(data.attributeIds) : null;
@@ -542,8 +521,6 @@ export const runStage2 = createServerFn({ method: "POST" })
 
       const compByName = new Map(loaded.competitors.map((c) => [c.name.toLowerCase(), c]));
       const attrByLabel = new Map(loaded.attributes.map((a) => [a.label.toLowerCase(), a]));
-      const gtmAttr = attrByLabel.get("gtm motion");
-      const stageAttr = attrByLabel.get("stage");
 
       for (const item of parsed) {
         const comp = compByName.get((item.company ?? "").toLowerCase());
@@ -567,21 +544,6 @@ export const runStage2 = createServerFn({ method: "POST" })
               .single();
             if (ins) urlToSourceId.set(src.url, ins.id);
           }
-        }
-
-        // company_attributes → GTM motion + Stage (no source links)
-        const ca = item.company_attributes ?? {};
-        if (gtmAttr && ca.gtm_motion?.value) {
-          await sb.from("extracted_values").upsert(
-            { attribute_id: gtmAttr.id, competitor_id: comp.id, value: ca.gtm_motion.value, confidence: normConfidence(ca.gtm_motion.confidence) },
-            { onConflict: "attribute_id,competitor_id" },
-          );
-        }
-        if (stageAttr && ca.stage?.value) {
-          await sb.from("extracted_values").upsert(
-            { attribute_id: stageAttr.id, competitor_id: comp.id, value: ca.stage.value, confidence: normConfidence(ca.stage.confidence) },
-            { onConflict: "attribute_id,competitor_id" },
-          );
         }
 
         // product_attributes

@@ -849,10 +849,6 @@ function Results({
   return (
     <div className="results">
       <div className="results-toolbar">
-        <div className="filters">
-          <span className="filter-pill">GTM: All ▾</span>
-          <span className="filter-pill">Stage: All ▾</span>
-        </div>
         <div className="toolbar-actions">
           <span className="btn-toolbar">⬇ Export CSV</span>
           <span className="btn-toolbar">⧉ Copy summary</span>
