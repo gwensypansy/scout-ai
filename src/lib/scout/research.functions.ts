@@ -366,6 +366,104 @@ function normSourceType(t?: string): "seed" | "crawled" | "web_search" {
   return "web_search";
 }
 
+/**
+ * Second pass: for every product attribute that came back low confidence (or
+ * "not specified"), crawl deeper on that competitor's domains — one link level
+ * further, re-ranked by the missing attributes' own keywords — then re-ask the
+ * model to re-extract just those attributes with the new pages. Improved values
+ * are merged into `parsed` in place.
+ */
+async function digDeeper(sb: ScoutDb, loaded: LoadedProject, parsed: Stage2Item[]): Promise<void> {
+  const compByName = new Map(loaded.competitors.map((c) => [c.name.toLowerCase(), c]));
+  const jobs: { comp: LoadedProject["competitors"][number]; item: Stage2Item; missing: string[] }[] = [];
+
+  for (const item of parsed) {
+    const comp = compByName.get((item.company ?? "").toLowerCase());
+    if (!comp) continue;
+    const missing = Object.entries(item.product_attributes ?? {})
+      .filter(([, p]) => normConfidence(p?.confidence) === "low" || (p?.value ?? "").toLowerCase() === "not specified")
+      .map(([label]) => label);
+    if (missing.length) jobs.push({ comp, item, missing });
+  }
+  if (!jobs.length) return;
+
+  await Promise.all(
+    jobs.map(async ({ comp, item, missing }) => {
+      try {
+        const seeds = loaded.sources.filter((s) => s.competitor_id === comp.id && s.source_type === "seed").map((s) => s.url);
+        if (!seeds.length) return;
+        const exclude = new Set(loaded.sources.filter((s) => s.competitor_id === comp.id).map((s) => s.url));
+        const attrKeywords = missing
+          .flatMap((label) => {
+            const a = loaded.attributes.find((x) => x.label === label);
+            return `${label} ${a?.description ?? ""}`;
+          })
+          .join(" ")
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((w) => w.length > 3);
+        const pages = await crawlDeeper(seeds, [...new Set(attrKeywords)].slice(0, 15), exclude);
+        if (!pages.length) return;
+
+        // Record the new pages as crawled sources so cells can link to them.
+        for (const p of pages) {
+          if (!exclude.has(p.url)) {
+            exclude.add(p.url);
+            await sb.from("sources").insert({ competitor_id: comp.id, url: p.url, source_type: "crawled" });
+          }
+        }
+
+        const lines: string[] = [];
+        lines.push(`Feature area: ${loaded.project.name}`);
+        lines.push("");
+        lines.push(
+          `This is a follow-up extraction for ${comp.name} ONLY. A first pass could not find these attributes in any source, so additional pages were fetched from deeper in ${comp.name}'s site. Re-extract ONLY the attributes listed below, using the new page text as evidence. Keep the same JSON array shape as Stage 2, with a single object for ${comp.name}, and only the listed attributes in product_attributes.`,
+        );
+        lines.push("");
+        lines.push("Attributes to re-extract:");
+        for (const label of missing) {
+          const a = loaded.attributes.find((x) => x.label === label);
+          lines.push(`- ${label}${a?.description ? `: ${a.description}` : ""}`);
+        }
+        lines.push("");
+        for (const p of pages) {
+          lines.push(`- CRAWLED ${p.url}`);
+          lines.push(`  TEXT: ${p.text.slice(0, CRAWL_CHARS)}`);
+        }
+        const raw = await callModel(lines.join("\n"));
+        let followUp: Stage2Item[];
+        try {
+          followUp = tryParseJSON<Stage2Item[]>(raw);
+        } catch {
+          return; // keep the original low-confidence values
+        }
+        const upd = Array.isArray(followUp) ? followUp[0] : undefined;
+        if (!upd?.product_attributes) return;
+        for (const label of missing) {
+          const next = upd.product_attributes[label];
+          const prev = item.product_attributes?.[label];
+          if (!next?.value) continue;
+          // Only replace when the deeper pass found something better.
+          const better =
+            !prev ||
+            normConfidence(next.confidence) !== "low" &&
+              (normConfidence(prev.confidence) === "low" || (prev.value ?? "").toLowerCase() === "not specified");
+          if (better) {
+            item.product_attributes = item.product_attributes ?? {};
+            item.product_attributes[label] = {
+              value: next.value,
+              confidence: normConfidence(next.confidence),
+              source_urls: next.source_urls?.length ? next.source_urls : pages.slice(0, 3).map((p) => p.url),
+            };
+          }
+        }
+      } catch {
+        // Deep-dive is best-effort; failures leave the original values untouched.
+      }
+    }),
+  );
+}
+
 export const runStage2 = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { projectId: string; competitorIds?: string[]; attributeIds?: string[] })
   .middleware([requireSupabaseAuth])
