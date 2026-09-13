@@ -418,6 +418,8 @@ export const runStage2 = createServerFn({ method: "POST" })
       }
       if (!Array.isArray(parsed)) throw new Error("Stage 2 response was not a JSON array");
 
+      await digDeeper(sb, loaded, parsed);
+
       const compByName = new Map(loaded.competitors.map((c) => [c.name.toLowerCase(), c]));
       const attrByLabel = new Map(loaded.attributes.map((a) => [a.label.toLowerCase(), a]));
       const gtmAttr = attrByLabel.get("gtm motion");
