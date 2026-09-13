@@ -417,7 +417,7 @@ async function digDeeper(sb: ScoutDb, loaded: LoadedProject, parsed: Stage2Item[
         lines.push(`Feature area: ${loaded.project.name}`);
         lines.push("");
         lines.push(
-          `This is a follow-up extraction for ${comp.name} ONLY. A first pass could not find these attributes in any source, so additional pages were fetched from deeper in ${comp.name}'s site. Re-extract ONLY the attributes listed below, using the new page text as evidence. Keep the same JSON array shape as Stage 2, with a single object for ${comp.name}, and only the listed attributes in product_attributes.`,
+          `This is a follow-up extraction for ${comp.name} ONLY. A first pass could not find these attributes in any source, so additional pages were fetched from deeper in ${comp.name}'s site. Re-extract ONLY the attributes listed below, using the new page text as evidence. Rules: (1) the "value" must be a concrete, specific answer drawn from the new page text — never a rephrasing of "not specified"; (2) if the new pages still do not cover an attribute, return value "not specified" with confidence "low" and an empty source_urls — do NOT raise confidence without evidence; (3) "high" confidence requires the fact to be explicitly stated on a page you list in source_urls, and every source_urls entry must be one of the CRAWLED URLs below. Keep the same JSON array shape as Stage 2, with a single object for ${comp.name}, and only the listed attributes in product_attributes.`,
         );
         lines.push("");
         lines.push("Attributes to re-extract:");
