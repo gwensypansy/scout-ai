@@ -656,9 +656,9 @@ function Onboarding(props: {
               {competitors.length > 1 && <button className="remove-x" onClick={() => removeCompetitor(i)}>×</button>}
             </div>
             <label>Company name</label>
-            <input type="text" value={c.name} onChange={(e) => updateCompetitor(i, { name: e.target.value })} placeholder={i === 0 ? "e.g. Figma" : i === 1 ? "e.g. Notion" : "e.g. Procore"} />
+            <input type="text" value={c.name} onChange={(e) => updateCompetitor(i, { name: e.target.value })} placeholder={i === 0 ? "e.g. Figma" : i === 1 ? "e.g. Notion" : ""} />
             <label>Seed URLs</label>
-            <textarea value={c.urls} onChange={(e) => updateCompetitor(i, { urls: e.target.value })} placeholder="https://help.example.com/permissions" />
+            <textarea value={c.urls} onChange={(e) => updateCompetitor(i, { urls: e.target.value })} placeholder={i < 2 ? "https://help.example.com/permissions" : ""} />
           </div>
         ))}
         {competitors.length < 6 && <button className="btn-dashed" onClick={addCompetitor}>+ Add competitor</button>}
