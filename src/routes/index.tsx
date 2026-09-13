@@ -846,12 +846,37 @@ function Results({
     sourcesByValueId.set(link.extracted_value_id, arr);
   });
 
+  const handleExportCsv = () => {
+    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Attribute", ...data.competitors.flatMap((c) => [c.name, `${c.name} — confidence`, `${c.name} — sources`])];
+    const rows = data.attributes.map((a) => {
+      const cells: string[] = [a.label];
+      data.competitors.forEach((c) => {
+        const ev = valueMap.get(a.id + "|" + c.id);
+        const urls = ev ? (sourcesByValueId.get(ev.id) ?? []).map((sid) => sourceById.get(sid)?.url).filter(Boolean) : [];
+        cells.push(ev?.v ?? "", ev?.c ?? "", (urls as string[]).join(" | "));
+      });
+      return cells;
+    });
+    const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const slug = (data.project.name || "scout").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    a.download = `${slug || "scout"}-comparison.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="results">
       <div className="results-toolbar">
         <div className="toolbar-actions">
-          <span className="btn-toolbar">⬇ Export CSV</span>
-          <span className="btn-toolbar">⧉ Copy summary</span>
+          <button className="btn-toolbar" onClick={handleExportCsv}>⬇ Export CSV</button>
+
           <button className="btn-toolbar" onClick={onOpenSources}>🔗 Sources<span className="count-badge">{totalSources}</span></button>
           <button className="btn-add-attr" onClick={onOpenAddCompetitor}>+ Add competitor</button>
           <button className="btn-add-attr" onClick={onOpenAddAttr}>+ Add attribute</button>
