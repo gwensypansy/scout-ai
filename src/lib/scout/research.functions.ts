@@ -4,6 +4,11 @@ import { generateText } from "ai";
 import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
+import {
+  searchWithYou,
+  searchForAttribute,
+  YOU_COM_CONFIG,
+} from "@/lib/you-com-integration";
 
 const SYSTEM_PROMPT = `SYSTEM PROMPT — Scout Competitive Research Assistant
 
@@ -116,7 +121,7 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-type Page = { url: string; text: string; html: string; ok: boolean };
+export type Page = { url: string; text: string; html: string; ok: boolean };
 
 async function fetchPage(url: string, timeoutMs = 15000): Promise<Page> {
   try {
@@ -184,12 +189,33 @@ function keywordsFor(loaded: LoadedProject): string[] {
 }
 
 /** Fetch a seed page, then fetch the most relevant same-domain pages linked from it. */
-async function crawlFromSeed(seedUrl: string, keywords: string[]): Promise<{ seed: Page; children: Page[] }> {
+async function crawlFromSeed(
+  seedUrl: string,
+  keywords: string[],
+  competitorName?: string,
+  featureArea?: string
+): Promise<{ seed: Page; children: Page[] }> {
   const seed = await fetchPage(seedUrl);
   if (!seed.ok) return { seed, children: [] };
   const links = rankLinks(seed, keywords, CRAWL_PER_SEED);
   const children = await Promise.all(links.map((u) => fetchPage(u, 12000)));
-  return { seed, children: children.filter((c) => c.ok && c.text.length > 400) };
+  const validChildren = children.filter((c) => c.ok && c.text.length > 400);
+
+  // NEW: If seed crawl was weak, try You.com search as fallback
+  if (
+    validChildren.length < 3 &&
+    YOU_COM_CONFIG.isConfigured &&
+    competitorName &&
+    featureArea
+  ) {
+    console.log(
+      `[Seed crawl weak for ${competitorName}] Supplementing with You.com search...`
+    );
+    const youResults = await searchWithYou(competitorName, featureArea, 8);
+    validChildren.push(...youResults);
+  }
+
+  return { seed, children: validChildren };
 }
 
 const DEEP_PER_COMP = 10;
@@ -257,7 +283,11 @@ async function buildUserMessage(sb: ScoutDb, loaded: LoadedProject, includeAttrs
       continue;
     }
     const known = new Set(loaded.sources.filter((s) => s.competitor_id === comp.id).map((s) => s.url));
-    const crawls = await Promise.all(seeds.map((s) => crawlFromSeed(s.url, keywords)));
+    const crawls = await Promise.all(
+      seeds.map((s) =>
+        crawlFromSeed(s.url, keywords, comp.name, loaded.project.feature_description ?? "")
+      )
+    );
     for (const { seed, children } of crawls) {
       lines.push(`- SEED ${seed.url}`);
       lines.push(`  TEXT: ${seed.text.slice(0, SEED_CHARS)}`);
@@ -393,7 +423,48 @@ async function digDeeper(sb: ScoutDb, loaded: LoadedProject, parsed: Stage2Item[
           .toLowerCase()
           .split(/[^a-z0-9]+/)
           .filter((w) => w.length > 3);
-        const pages = await crawlDeeper(seeds, [...new Set(attrKeywords)].slice(0, 15), exclude);
+        let pages = await crawlDeeper(
+          seeds,
+          [...new Set(attrKeywords)].slice(0, 15),
+          exclude
+        );
+
+        // NEW: If crawlDeeper didn't find much, try You.com
+        if (
+          pages.length < 3 &&
+          YOU_COM_CONFIG.isConfigured &&
+          missing.length > 0
+        ) {
+          console.log(
+            `[Deep dive weak for ${comp.name} on ${missing[0]}] Trying You.com...`
+          );
+
+          const firstMissingLabel = missing[0];
+          const firstMissingAttr = loaded.attributes.find(
+            (a) => a.label === firstMissingLabel
+          );
+
+          if (firstMissingAttr) {
+            const youResults = await searchForAttribute(
+              comp.name,
+              firstMissingLabel,
+              firstMissingAttr.description || undefined
+            );
+            pages = [...pages, ...youResults].slice(0, 12);
+
+            for (const p of youResults) {
+              if (!exclude.has(p.url)) {
+                exclude.add(p.url);
+                await sb.from("sources").insert({
+                  competitor_id: comp.id,
+                  url: p.url,
+                  source_type: "crawled",
+                });
+              }
+            }
+          }
+        }
+
         if (!pages.length) return;
 
         // Record the new pages as crawled sources so cells can link to them.
