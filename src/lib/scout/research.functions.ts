@@ -417,7 +417,7 @@ async function digDeeper(sb: ScoutDb, loaded: LoadedProject, parsed: Stage2Item[
         lines.push(`Feature area: ${loaded.project.name}`);
         lines.push("");
         lines.push(
-          `This is a follow-up extraction for ${comp.name} ONLY. A first pass could not find these attributes in any source, so additional pages were fetched from deeper in ${comp.name}'s site. Re-extract ONLY the attributes listed below, using the new page text as evidence. Keep the same JSON array shape as Stage 2, with a single object for ${comp.name}, and only the listed attributes in product_attributes.`,
+          `This is a follow-up extraction for ${comp.name} ONLY. A first pass could not find these attributes in any source, so additional pages were fetched from deeper in ${comp.name}'s site. Re-extract ONLY the attributes listed below, using the new page text as evidence. Rules: (1) the "value" must be a concrete, specific answer drawn from the new page text — never a rephrasing of "not specified"; (2) if the new pages still do not cover an attribute, return value "not specified" with confidence "low" and an empty source_urls — do NOT raise confidence without evidence; (3) "high" confidence requires the fact to be explicitly stated on a page you list in source_urls, and every source_urls entry must be one of the CRAWLED URLs below. Keep the same JSON array shape as Stage 2, with a single object for ${comp.name}, and only the listed attributes in product_attributes.`,
         );
         lines.push("");
         lines.push("Attributes to re-extract:");
@@ -439,24 +439,46 @@ async function digDeeper(sb: ScoutDb, loaded: LoadedProject, parsed: Stage2Item[
         }
         const upd = Array.isArray(followUp) ? followUp[0] : undefined;
         if (!upd?.product_attributes) return;
+        const isEmptyish = (v?: string) => {
+          const s = (v ?? "").trim().toLowerCase();
+          return (
+            s.length < 3 ||
+            s === "n/a" ||
+            s === "none" ||
+            s === "unknown" ||
+            s === "unclear" ||
+            s === "not specified" ||
+            s === "not stated" ||
+            s === "not mentioned" ||
+            s === "not found" ||
+            s.startsWith("not specified") ||
+            s.startsWith("no information")
+          );
+        };
+        const normText = (v?: string) => (v ?? "").trim().toLowerCase().replace(/\s+/g, " ").replace(/[.]+$/, "");
+
         for (const label of missing) {
           const next = upd.product_attributes[label];
           const prev = item.product_attributes?.[label];
           if (!next?.value) continue;
-          // Only replace when the deeper pass found something better.
-          const better =
-            !prev ||
-            normConfidence(next.confidence) !== "low" &&
-              (normConfidence(prev.confidence) === "low" || (prev.value ?? "").toLowerCase() === "not specified");
-          if (better) {
-            item.product_attributes = item.product_attributes ?? {};
-            item.product_attributes[label] = {
-              value: next.value,
-              confidence: normConfidence(next.confidence),
-              source_urls: next.source_urls?.length ? next.source_urls : pages.slice(0, 3).map((p) => p.url),
-            };
-          }
+          // The deeper pass must actually produce NEW substance — not just a
+          // higher confidence on the same (or still-empty) text.
+          if (isEmptyish(next.value)) continue;
+          if (prev && normText(next.value) === normText(prev.value)) continue;
+          const prevWasWeak =
+            !prev || normConfidence(prev.confidence) === "low" || isEmptyish(prev.value);
+          if (!prevWasWeak) continue;
+          // Confidence is capped at "medium" unless the model cites a source page.
+          const cited = (next.source_urls ?? []).length > 0;
+          const conf = normConfidence(next.confidence);
+          item.product_attributes = item.product_attributes ?? {};
+          item.product_attributes[label] = {
+            value: next.value,
+            confidence: cited ? conf : conf === "high" ? "medium" : conf,
+            source_urls: next.source_urls?.length ? next.source_urls : pages.slice(0, 3).map((p) => p.url),
+          };
         }
+
       } catch {
         // Deep-dive is best-effort; failures leave the original values untouched.
       }
