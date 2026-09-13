@@ -200,6 +200,32 @@ async function crawlFromSeed(seedUrl: string, keywords: string[]): Promise<{ see
   return { seed, children: children.filter((c) => c.ok && c.text.length > 400) };
 }
 
+const DEEP_PER_COMP = 10;
+
+/**
+ * Second-pass crawl for low-confidence attributes: goes one link level deeper
+ * (links found on the first-level crawled pages) and re-ranks everything using
+ * keywords from the missing attributes themselves.
+ */
+async function crawlDeeper(seedUrls: string[], keywords: string[], exclude: Set<string>): Promise<Page[]> {
+  const seeds = await Promise.all(seedUrls.map((u) => fetchPage(u, 12000)));
+  const level1Links = new Set<string>();
+  for (const seed of seeds.filter((s) => s.ok)) {
+    for (const l of rankLinks(seed, keywords, CRAWL_PER_SEED * 2)) if (!exclude.has(l)) level1Links.add(l);
+  }
+  const level1 = await Promise.all([...level1Links].slice(0, 6).map((u) => fetchPage(u, 12000)));
+  // Second level: links on the first-level pages, ranked with the same keywords.
+  const level2Links = new Set<string>();
+  for (const p of level1.filter((p) => p.ok)) {
+    for (const l of rankLinks(p, keywords, DEEP_PER_COMP)) {
+      if (!exclude.has(l) && !level1Links.has(l)) level2Links.add(l);
+    }
+  }
+  const fresh = level1.filter((p) => p.ok && p.text.length > 400 && !exclude.has(p.url));
+  const level2 = await Promise.all([...level2Links].slice(0, DEEP_PER_COMP).map((u) => fetchPage(u, 10000)));
+  return [...fresh, ...level2.filter((p) => p.ok && p.text.length > 400)].slice(0, DEEP_PER_COMP + 4);
+}
+
 
 type LoadedProject = {
   project: { id: string; name: string; feature_description: string | null };
